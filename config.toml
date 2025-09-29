@@ -1,0 +1,12 @@
+# config.toml
+
+[settings]
+# Danh sách các tên miền cần giám sát
+domains = [
+    "google.com",
+    "github.com",
+    "uit.edu.vn"
+]
+
+# Các ngưỡng cảnh báo (tính bằng ngày trước khi hết hạn)
+alert_thresholds = [30, 15, 7]
