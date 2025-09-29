@@ -9,4 +9,10 @@ domains = [
 ]
 
 # Các ngưỡng cảnh báo (tính bằng ngày trước khi hết hạn)
-alert_thresholds = [30, 15, 7]
+alert_thresholds = [365, 15, 7]
+
+[notifications.slack]
+enabled = true
+
+# Webhook URL
+webhook_url_env_var = "SLACK_WEBHOOK_URL"
