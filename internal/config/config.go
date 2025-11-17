@@ -15,6 +15,7 @@ type Config struct {
 type Settings struct {
 	Domains         []string `toml:"domains"`
 	AlertThresholds []int    `toml:"alert_thresholds"`
+	Concurrency     int      `toml:"concurrency"`
 }
 
 // Notifications struct holds configuration for all notification channels.

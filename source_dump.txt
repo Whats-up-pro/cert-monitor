@@ -1,0 +1,31 @@
+# ==================================================
+# Path: E:\Dai Hoc\Nam 3\An toan mang\cert-monitor
+# Detected tech: go
+# ==================================================
+
+## DIRECTORY STRUCTURE
+```
+cert-monitor/
+├── .git/
+├── cmd/
+│   └── cert-monitor/
+│       └── main.go
+├── internal/
+│   ├── checker/
+│   │   └── checker.go
+│   ├── config/
+│   │   └── config.go
+│   ├── evaluator/
+│   │   └── evaluator.go
+│   └── notifier/
+│       └── slack.go
+├── .gitignore
+├── README.md
+├── cert-monitor
+├── cert-monitor.exe
+├── config.toml
+├── go.mod
+└── go.sum
+```
+
+## FILE CONTENTS
