@@ -3,13 +3,21 @@ package checker
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"net"
 	"time"
 )
 
+type CertInfo struct {
+	ExpiryDate         time.Time
+	Issuer             string
+	PublicKeyType      string
+	SignatureAlgorithm string
+}
+
 // CheckHost checks a single hostname and returns its certificate's expiry date.
-func CheckHost(hostname string) (time.Time, error) {
+func CheckHost(hostname string) (CertInfo, error) {
 	// TLS config to skip certificate verification. This is crucial for checking
 	// already expired certificates without the connection failing.
 	conf := &tls.Config{
@@ -24,17 +32,36 @@ func CheckHost(hostname string) (time.Time, error) {
 		conf,
 	)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("could not connect to %s: %w", hostname, err)
+		return CertInfo{}, fmt.Errorf("could not connect to %s: %w", hostname, err)
 	}
 	defer conn.Close()
 
 	// Get the peer certificates from the connection state.
 	certs := conn.ConnectionState().PeerCertificates
 	if len(certs) == 0 {
-		return time.Time{}, fmt.Errorf("no certificates found for %s", hostname)
+		return CertInfo{}, fmt.Errorf("no certificates found for %s", hostname)
 	}
 
+	leafCert := certs[0]
+
+	publicKeyTypeString := ""
+
+	switch leafCert.PublicKeyAlgorithm {
+	case x509.RSA:
+		publicKeyTypeString = "RSA"
+	case x509.ECDSA:
+		publicKeyTypeString = "ECC (ECDSA)"
+	// Thêm các trường hợp khác nếu cần (như DSA)
+	default:
+		publicKeyTypeString = "Unknown"
+	}
+
+	return CertInfo{
+		ExpiryDate:         leafCert.NotAfter,
+		Issuer:             leafCert.Issuer.Organization[0],
+		PublicKeyType:      publicKeyTypeString,
+		SignatureAlgorithm: leafCert.SignatureAlgorithm.String(),
+	}, nil
 	// The first certificate in the chain is the leaf certificate.
 	// We return its expiration date.
-	return certs[0].NotAfter, nil
 }
