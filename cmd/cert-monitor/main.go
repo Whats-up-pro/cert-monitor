@@ -3,7 +3,6 @@ package main
 
 import (
 	"cert-monitor/internal/checker"
-	"cert-monitor/internal/evaluator"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -12,35 +11,33 @@ import (
 	"time"
 )
 
-// Khai báo AlertThresholds (vì không đọc config.toml)
-// Lưu ý: Giá trị [30, 7] giả định evaluator.Evaluate dùng []int và [0]=Warning, [1]=Critical
-var serverAlertThresholds = []int{30, 7}
-
-// Request struct để nhận tên miền từ Extension
+// Request từ Extension
 type CertRequest struct {
 	Domain string `json:"domain"`
 }
 
-// Response struct để gửi kết quả về Extension
+// Response trả về Extension
 type CertResponse struct {
-	Message     string `json:"message"`
-	ShouldAlert bool   `json:"json:"shouldAlert"`
-	Error       string `json:"error,omitempty"`
-
 	Issuer             string `json:"issuer"`
 	ExpiryDate         string `json:"expiryDate"`
 	DaysLeft           int    `json:"daysLeft"`
 	PublicKeyType      string `json:"publicKeyType"`
 	SignatureAlgorithm string `json:"signatureAlgorithm"`
+	Fingerprint   string `json:"fingerprint"`    // Vân tay SHA-256
+	SecurityScore int    `json:"security_score"` // Điểm số (0-100)
+	RiskLevel     string `json:"risk_level"`     // SAFE, WARNING, CRITICAL
+
+	ShouldAlert bool   `json:"shouldAlert"`
+	Error       string `json:"error,omitempty"`
 }
 
 func checkCertHandler(w http.ResponseWriter, r *http.Request) {
-	// Cấu hình CORS BẮT BUỘC cho Extension chạy Localhost
-	startTime := time.Now()
-	w.Header().Set("Access-Control-Allow-Origin", "http://localhost:8080")
+	// 1. Cấu hình CORS
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 
+	// Xử lý Preflight request
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusOK)
 		return
@@ -51,55 +48,52 @@ func checkCertHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 2. Đọc Request
 	var req CertRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid JSON input", http.StatusBadRequest)
 		return
 	}
-	domain := req.Domain
 
-	checkStart := time.Now()
-	certInfo, err := checker.CheckHost(domain)
-	checkDuration := time.Since(checkStart)
+	log.Printf("Checking domain: %s", req.Domain)
+	
+	// 3. Gọi Checker (Logic trung tâm)
+	certInfo, err := checker.CheckHost(req.Domain)
 
-	// 1. Kiểm tra Chứng chỉ
+	resp := CertResponse{}
+
+	// 4. Xử lý kết quả
 	if err != nil {
-		resp := CertResponse{
-			Message:     fmt.Sprintf("CRITICAL: Error checking %s", domain),
-			ShouldAlert: true,
-			Error:       err.Error(),
-			DaysLeft:    -1,
+		log.Printf("Error checking %s: %v", req.Domain, err)
+		resp.ShouldAlert = true
+		resp.Error = err.Error()
+		resp.DaysLeft = -1
+		resp.RiskLevel = "CRITICAL"
+		resp.SecurityScore = 0
+	} else {
+		// Map dữ liệu từ Checker sang Response JSON
+		resp.Issuer = certInfo.Issuer
+		resp.ExpiryDate = certInfo.ExpiryDate.Format(time.RFC3339)
+		resp.DaysLeft = certInfo.DaysLeft
+		resp.PublicKeyType = certInfo.PublicKeyType
+		resp.SignatureAlgorithm = certInfo.SignatureAlgorithm
+		
+		// Map các trường mới
+		resp.Fingerprint = certInfo.Fingerprint
+		resp.SecurityScore = certInfo.SecurityScore
+		resp.RiskLevel = certInfo.RiskLevel
+
+		// Logic cảnh báo đơn giản dựa trên RiskLevel từ Checker
+		if certInfo.RiskLevel != "SAFE" {
+			resp.ShouldAlert = true
 		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(resp)
-		return
 	}
 
-	evalStart := time.Now()
-	alertInfo := evaluator.Evaluate(domain, certInfo, serverAlertThresholds)
-	evalDuration := time.Since(evalStart)
-
-	// 2. Đánh giá
-	resp := CertResponse{
-		Message:            alertInfo.Message,
-		ShouldAlert:        alertInfo.ShouldAlert,
-		Issuer:             certInfo.Issuer,
-		ExpiryDate:         certInfo.ExpiryDate.Format(time.RFC3339),
-		DaysLeft:           alertInfo.DaysLeft,
-		PublicKeyType:      certInfo.PublicKeyType,
-		SignatureAlgorithm: certInfo.SignatureAlgorithm,
-	}
-	totalDuration := time.Since(startTime)
-	log.Printf("[API Performance] DOMAIN: %s | CHECK: %s | EVAL: %s | TOTAL: %s",
-		domain,
-		checkDuration,
-		evalDuration,
-		totalDuration,
-	)
-	// 3. Gửi Response
+	// 5. Trả về JSON
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		log.Printf("Error encoding response: %v", err)
+	}
 }
 
 func main() {
@@ -109,7 +103,7 @@ func main() {
 	if port == "" {
 		port = "8080"
 	}
-	fmt.Printf("Server API running at http://localhost:%s/check-cert\n", port)
+	fmt.Printf("🛡️  Cert-Monitor Hybrid Agent running at http://localhost:%s/check-cert\n", port)
 
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		log.Fatal(err)
