@@ -1,6 +1,6 @@
 # ==================================================
 # Path: E:\Dai Hoc\Nam 3\An toan mang\cert-monitor
-# Detected tech: go
+# Detected tech: go, javascript
 # ==================================================
 
 ## DIRECTORY STRUCTURE
@@ -10,6 +10,10 @@ cert-monitor/
 ├── cmd/
 │   └── cert-monitor/
 │       └── main.go
+├── images/
+│   ├── icon-128.png
+│   ├── icon-16.png
+│   └── icon-48.png
 ├── internal/
 │   ├── checker/
 │   │   └── checker.go
@@ -21,11 +25,169 @@ cert-monitor/
 │       └── slack.go
 ├── .gitignore
 ├── README.md
+├── background.js
 ├── cert-monitor
 ├── cert-monitor.exe
 ├── config.toml
 ├── go.mod
-└── go.sum
+├── go.sum
+├── manifest.json
+├── popup.html
+├── popup.js
+└── source_dump.txt
 ```
 
 ## FILE CONTENTS
+
+### background.js
+```js
+// 1. Khai báo Endpoint API
+const API_ENDPOINT = 'http://localhost:8080/check-cert';
+
+// Ngưỡng cảnh báo (chỉ dùng để tô màu Badge, logic chính nằm ở Server Go)
+const CRITICAL_DAYS = 7;
+const WARNING_DAYS = 30;
+
+/**
+ * Hàm gọi API Go cục bộ để kiểm tra chứng chỉ
+ * và gửi kết quả về popup.js
+ */
+async function checkAndSendResult(url, tabId) {
+    let hostname;
+    let result = {
+        issuer: "N/A",
+        expiryDate: "N/A",
+        daysLeft: "N/A",
+        shouldAlert: false,
+        error: null
+    };
+
+    try {
+        // 1a. Kiểm tra và trích xuất hostname
+        const urlObj = new URL(url);
+        if (urlObj.protocol !== 'https:') {
+            result.error = "Vui lòng truy cập trang HTTPS để kiểm tra.";
+            result.shouldAlert = true;
+            throw new Error("Not HTTPS"); // Dùng để chuyển thẳng xuống khối catch và gửi thông báo lỗi
+        }
+        hostname = urlObj.hostname;
+        console.log("Dữ liệu gửi đến API:", JSON.stringify({ domain: hostname }));
+        // 2. Gọi API Go cục bộ (POST request)
+        const response = await fetch(API_ENDPOINT, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ domain: hostname }) // Gửi tên miền dưới dạng JSON
+        });
+
+        // 3. Xử lý lỗi HTTP (ví dụ: Server 404/500)
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Server returned status ${response.status}: ${errorText}`);
+        }
+
+        // 4. Phân tích kết quả JSON từ Server Go
+        const apiData = await response.json();
+        console.log("Dữ liệu nhận được từ API:", apiData);
+        // 5. Ánh xạ dữ liệu JSON từ API Go vào biến result của Extension
+        // (Server Go dùng snake_case, Extension dùng camelCase)
+        result.issuer = apiData.issuer || "N/A";
+        // Chuyển đổi chuỗi ngày tháng (ISO/RFC3339) thành định dạng dễ đọc
+        const rawExpiryDate = apiData.expiryDate;
+        result.expiryDate = rawExpiryDate ? new Date(rawExpiryDate).toLocaleDateString() : "N/A";
+    
+        result.daysLeft = apiData.daysLeft !== undefined ? apiData.daysLeft : "N/A";
+        
+        result.publicKeyType = apiData.publicKeyType || "N/A";
+        result.signatureAlgorithm = apiData.signatureAlgorithm || "N/A";
+        result.shouldAlert = apiData.ShouldAlert || apiData.shouldAlert || false;
+        result.error = apiData.Error || apiData.error || null;
+        
+    } catch (e) {
+        // Xử lý lỗi kết nối, lỗi JSON, hoặc lỗi Server
+        console.error("API Call Error:", e);
+        // Chỉ cập nhật lỗi nếu không phải lỗi "Not HTTPS" đã được xử lý ở trên
+        if (e.message !== "Not HTTPS") {
+            result.error = `Connection/API Error: ${e.message}`;
+        }
+        result.shouldAlert = true;
+    }
+
+    // 6. Gửi kết quả cuối cùng về popup.js
+    chrome.runtime.sendMessage({
+        action: "cert_status_update",
+        shouldAlert: result.shouldAlert,
+        error: result.error,
+        issuer: result.issuer,
+        expiryDate: result.expiryDate,
+        daysLeft: result.daysLeft,
+        publicKeyType: result.publicKeyType,
+        signatureAlgorithm: result.signatureAlgorithm
+    }, function() {
+        if (chrome.runtime.lastError) { /* Bỏ qua lỗi Popup đóng */ }
+    });
+    
+    // 7. Thiết lập Badge
+    const badgeColor = result.shouldAlert ? '#FF0000' : '#00AA00';
+    const badgeText = result.shouldAlert ? "!" : (result.daysLeft !== "N/A" ? String(result.daysLeft) : ""); // Hiển thị số ngày còn lại
+    chrome.action.setBadgeBackgroundColor({ color: badgeColor }); 
+    chrome.action.setBadgeText({ tabId: tabId, text: badgeText });
+}
+
+// Lắng nghe yêu cầu kiểm tra từ Popup
+chrome.runtime.onMessage.addListener(
+    (request, sender, sendResponse) => {
+        if (request.action === "request_cert_check") {
+            checkAndSendResult(request.url, request.tabId);
+            return true; // Báo hiệu sẽ gửi phản hồi bất đồng bộ
+        }
+    }
+);
+```
+
+### popup.js
+```js
+document.addEventListener('DOMContentLoaded', function() {
+  const statusDiv = document.getElementById('status');
+  statusDiv.textContent = "Waiting for check results..."; 
+
+  chrome.runtime.onMessage.addListener(
+    function(request, sender, sendResponse) {
+      if (request.action === "cert_status_update") {
+        
+        let daysLeftStyle = request.shouldAlert ? 'color: red; font-weight: bold;' : 'color: green; font-weight: bold;';
+        
+        // Cập nhật HTML để hiển thị thông tin chi tiết
+        statusDiv.innerHTML = `
+          <div style="font-size: 13px;">
+            <p style="line-height: 1.5;">
+                <strong>Issuer:</strong> ${request.issuer}<br>
+                <strong>Expiration Date:</strong> ${request.expiryDate}<br>
+                <strong>Days Remaining:</strong> <span style="${daysLeftStyle}">${request.daysLeft} days</span><br>
+                <strong>Public Key Type:</strong> ${request.publicKeyType}<br>
+                <strong>Signature Algorithm:</strong> ${request.signatureAlgorithm}
+            </p>
+            ${request.error ? `<hr><span style="color: gray; font-size: 11px; font-weight: normal;">Error: ${request.error}</span>` : ''}
+          </div>
+        `;
+      }
+    }
+  );
+
+  chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+    if (tabs[0] && tabs[0].url) {
+      
+      statusDiv.textContent = `Checking ${new URL(tabs[0].url).hostname}...`; 
+      
+      chrome.runtime.sendMessage({ 
+          action: "request_cert_check", 
+          url: tabs[0].url,
+          tabId: tabs[0].id
+      });
+    } else {
+       statusDiv.textContent = "Please navigate to an HTTPS website.";
+    }
+  });
+});
+```

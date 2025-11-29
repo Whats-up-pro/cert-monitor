@@ -6,122 +6,14 @@
 concurrency = 64
 # Danh sách các tên miền cần giám sát
 domains = [
-    # Top Global & Tech Giants (20)
     "google.com", "facebook.com", "youtube.com", "microsoft.com", "apple.com",
-    "amazon.com", "wikipedia.org", "twitter.com", "instagram.com", "linkedin.com",
-    "netflix.com", "yahoo.com", "baidu.com", "yandex.ru", "oracle.com",
-    "samsung.com", "sony.com", "intel.com", "ibm.com", "huawei.com",
-
-    # Social Media & Communication (20)
-    "pinterest.com", "reddit.com", "discord.com", "telegram.org", "whatsapp.com",
-    "signal.org", "tiktok.com", "snapchat.com", "viber.com", "skype.com",
-    "wechat.com", "line.me", "quora.com", "tumblr.com", "nextdoor.com",
-    "weibo.com", "vk.com", "meetup.com", "goodreads.com", "tinder.com",
-
-    # Major Software & Development Platforms (30)
-    "github.com", "stackoverflow.com", "gitlab.com", "wordpress.org", "wordpress.com",
-    "docker.com", "python.org", "golang.org", "rust-lang.org", "nodejs.org",
-    "adobe.com", "salesforce.com", "atlassian.com", "bitbucket.org", "sourceforge.net",
-    "npmjs.com", "mozilla.org", "apache.org", "jetbrains.com", "visualstudio.com",
-    "kubernetes.io", "terraform.io", "ansible.com", "jenkins.io", "elastic.co",
-    "mongodb.com", "redis.io", "mysql.com", "postgresql.org", "ubuntu.com",
-
-    # Cloud, Hosting & Infrastructure (25)
-    "cloudflare.com", "digitalocean.com", "linode.com", "vultr.com", "heroku.com",
-    "aws.amazon.com", "cloud.google.com", "azure.microsoft.com", "redhat.com", "vmware.com",
-    "netlify.com", "vercel.com", "fly.io", "render.com", "ovh.com",
-    "hetzner.com", "fastly.com", "akamai.com", "rackspace.com", "equinix.com",
-    "ionos.com", "bluehost.com", "hostgator.com", "siteground.com", "a2hosting.com",
-
-    # E-commerce & Marketplaces (30)
-    "alibaba.com", "ebay.com", "walmart.com", "shopify.com", "etsy.com",
-    "paypal.com", "stripe.com", "square.com", "aliexpress.com", "rakuten.co.jp",
-    "target.com", "bestbuy.com", "homedepot.com", "costco.com", "ikea.com",
-    "mercadolibre.com", "otto.de", "jd.com", "tmall.com", "taobao.com",
-    "wayfair.com", "newegg.com", "zappos.com", "chewy.com", "overstock.com",
-    "wish.com", "groupon.com", "craigslist.org", "offerup.com", "letgo.com",
-
-    # Business & Productivity Tools (20)
-    "zoom.us", "slack.com", "dropbox.com", "trello.com", "evernote.com",
-    "intuit.com", "mailchimp.com", "hubspot.com", "godaddy.com", "namecheap.com",
-    "surveymonkey.com", "docusign.com", "miro.com", "notion.so", "asana.com",
-    "monday.com", "clickup.com", "airtable.com", "calendly.com", "zapier.com",
-
-    # Financial & Banking (25)
-    "visa.com", "mastercard.com", "americanexpress.com", "chase.com", "bankofamerica.com",
-    "wellsfargo.com", "citigroup.com", "hsbc.com", "jpmorganchase.com", "goldmansachs.com",
-    "morganstanley.com", "barclays.com", "deutsche-bank.com", "ubs.com", "fidelity.com",
-    "vanguard.com", "coinbase.com", "binance.com", "kraken.com", "etoro.com",
-    "robinhood.com", "schwab.com", "capitalone.com", "usbank.com", "pnc.com",
-
-    # News, Media & Publishing (30)
-    "nytimes.com", "theguardian.com", "cnn.com", "bbc.com", "wsj.com",
-    "reuters.com", "forbes.com", "bloomberg.com", "washingtonpost.com", "usatoday.com",
-    "medium.com", "techcrunch.com", "wired.com", "theverge.com", "huffpost.com",
-    "chinadaily.com.cn", "aljazeera.com", "thetimes.co.uk", "lemonde.fr", "spiegel.de",
-    "apnews.com", "npr.org", "pbs.org", "businessinsider.com", "buzzfeed.com",
-    "vice.com", "vox.com", "politico.com", "axios.com", "cnet.com",
-
-    # Entertainment & Streaming (25)
-    "imdb.com", "spotify.com", "soundcloud.com", "bandcamp.com", "vimeo.com",
-    "twitch.tv", "dailymotion.com", "disney.com", "espn.com", "rottentomatoes.com",
-    "hulu.com", "hbomax.com", "peacocktv.com", "fandom.com", "gamespot.com",
-    "ign.com", "steamcommunity.com", "epicgames.com", "ea.com", "blizzard.com",
-    "ubisoft.com", "nintendo.com", "playstation.com", "xbox.com", "pandora.com",
-
-    # Popular Vietnamese Websites (30)
-    "vnexpress.net", "zingnews.vn", "thanhnien.vn", "tuoitre.vn", "vietnamnet.vn",
-    "shopee.vn", "tiki.vn", "lazada.vn", "thegioididong.com", "fptshop.com.vn",
-    "vtv.vn", "kenh14.vn", "danviet.vn", "nld.com.vn", "soha.vn",
-    "zalo.me", "baomoi.com", "cafef.vn", "vietcombank.com.vn", "techcombank.com.vn",
-    "acb.com.vn", "vib.com.vn", "mbank.com.vn", "vntrip.vn", "foody.vn",
-    "chodocu.com", "topcv.vn", "vietnamworks.com", "batdongsan.com.vn", "dantri.com.vn",
-
-    # Education & Research (25)
-    "mit.edu", "stanford.edu", "harvard.edu", "cam.ac.uk", "ox.ac.uk",
-    "coursera.org", "edx.org", "udemy.com", "khanacademy.org", "archive.org",
-    "jstor.org", "researchgate.net", "acm.org", "ieee.org", "elsevier.com",
-    "nature.com", "sciencemag.org", "arxiv.org", "plos.org", "springer.com",
-    "uit.edu.vn", "hcmus.edu.vn", "vnu.edu.vn", "hust.edu.vn", "ptit.edu.vn",
-
-    # Travel & Hospitality (20)
-    "expedia.com", "tripadvisor.com", "kayak.com", "agoda.com", "hotels.com",
-    "marriott.com", "hilton.com", "ihg.com", "accor.com", "hyatt.com",
-    "delta.com", "aa.com", "united.com", "southwest.com", "ryanair.com",
-    "lufthansa.com", "emirates.com", "uber.com", "lyft.com", "grab.com",
-    
-    # Automotive (15)
-    "toyota.com", "mercedes-benz.com", "bmw.com", "honda.com", "ford.com",
-    "volkswagen.de", "tesla.com", "nissan-global.com", "hyundai.com", "audi.com",
-    "porsche.com", "ferrari.com", "autotrader.com", "cars.com", "kbb.com",
-
-    # Retail, Fashion & Luxury (20)
-    "nike.com", "adidas.com", "zara.com", "hm.com", "uniqlo.com",
-    "gucci.com", "louisvuitton.com", "chanel.com", "hermes.com", "rolex.com",
-    "macys.com", "nordstrom.com", "sephora.com", "ulta.com", "gap.com",
-    "levis.com", "lululemon.com", "patagonia.com", "thenorthface.com", "underarmour.com",
-
-    # Health & Wellness (15)
-    "webmd.com", "mayoclinic.org", "healthline.com", "nih.gov", "cdc.gov",
-    "who.int", "medscape.com", "myfitnesspal.com", "calm.com", "headspace.com",
-    "goodrx.com", "cvs.com", "walgreens.com", "gsk.com", "pfizer.com",
-
-    # Government & NGOs (15)
-    "nasa.gov", "un.org", "europa.eu", "whitehouse.gov", "senate.gov",
-    "house.gov", "fcc.gov", "sec.gov", "usps.com", "redcross.org",
-    "amnesty.org", "wfp.org", "worldbank.org", "imf.org", "greenpeace.org",
-    
-    # Other Popular Services & Search (15)
-    "bing.com", "duckduckgo.com", "aol.com", "ask.com", "live.com",
-    "office.com", "canva.com", "roblox.com", "patreon.com", "substack.com",
-    "yelp.com", "glassdoor.com", "indeed.com", "zillow.com", "realtor.com"
 ]
 
 # Các ngưỡng cảnh báo (tính bằng ngày trước khi hết hạn)
 alert_thresholds = [10000]
 
 [notifications.slack]
-enabled = true
+enabled = false
 
 # Webhook URL
 webhook_url_env_var = "SLACK_WEBHOOK_URL"

@@ -3,144 +3,109 @@ package main
 
 import (
 	"cert-monitor/internal/checker"
-	"cert-monitor/internal/config"
-	"cert-monitor/internal/evaluator"
-	"cert-monitor/internal/notifier"
-	"flag" 
+	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
-	"sync"
-	"time" 
-	"runtime"
+	"time"
 )
 
-func printMemUsage() {
-	var m runtime.MemStats
-	runtime.ReadMemStats(&m)
-	// m.Alloc là bộ nhớ heap hiện tại đang được sử dụng.
-	// m.TotalAlloc là tổng bộ nhớ heap đã được cấp phát (sẽ luôn tăng).
-	// Chuyển đổi sang MiB.
-	fmt.Printf("Alloc = %v MiB", m.Alloc/1024/1024)
-	fmt.Printf("\tTotalAlloc = %v MiB", m.TotalAlloc/1024/1024)
-	fmt.Printf("\tSys = %v MiB", m.Sys/1024/1024)
-	fmt.Printf("\tNumGC = %v\n", m.NumGC)
+// Request từ Extension
+type CertRequest struct {
+	Domain string `json:"domain"`
 }
 
+// Response trả về Extension
+type CertResponse struct {
+	Issuer             string `json:"issuer"`
+	ExpiryDate         string `json:"expiryDate"`
+	DaysLeft           int    `json:"daysLeft"`
+	PublicKeyType      string `json:"publicKeyType"`
+	SignatureAlgorithm string `json:"signatureAlgorithm"`
+	Fingerprint   string `json:"fingerprint"`    // Vân tay SHA-256
+	SecurityScore int    `json:"security_score"` // Điểm số (0-100)
+	RiskLevel     string `json:"risk_level"`     // SAFE, WARNING, CRITICAL
 
-// CheckResult struct to hold results from concurrent workers.
-type CheckResult struct {
-	Domain     string
-	ExpiryDate time.Time
-	Err        error
+	ShouldAlert bool   `json:"shouldAlert"`
+	Error       string `json:"error,omitempty"`
+}
+
+func checkCertHandler(w http.ResponseWriter, r *http.Request) {
+	// 1. Cấu hình CORS
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+	// Xử lý Preflight request
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// 2. Đọc Request
+	var req CertRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON input", http.StatusBadRequest)
+		return
+	}
+
+	log.Printf("Checking domain: %s", req.Domain)
+	
+	// 3. Gọi Checker (Logic trung tâm)
+	certInfo, err := checker.CheckHost(req.Domain)
+
+	resp := CertResponse{}
+
+	// 4. Xử lý kết quả
+	if err != nil {
+		log.Printf("Error checking %s: %v", req.Domain, err)
+		resp.ShouldAlert = true
+		resp.Error = err.Error()
+		resp.DaysLeft = -1
+		resp.RiskLevel = "CRITICAL"
+		resp.SecurityScore = 0
+	} else {
+		// Map dữ liệu từ Checker sang Response JSON
+		resp.Issuer = certInfo.Issuer
+		resp.ExpiryDate = certInfo.ExpiryDate.Format(time.RFC3339)
+		resp.DaysLeft = certInfo.DaysLeft
+		resp.PublicKeyType = certInfo.PublicKeyType
+		resp.SignatureAlgorithm = certInfo.SignatureAlgorithm
+		
+		// Map các trường mới
+		resp.Fingerprint = certInfo.Fingerprint
+		resp.SecurityScore = certInfo.SecurityScore
+		resp.RiskLevel = certInfo.RiskLevel
+
+		// Logic cảnh báo đơn giản dựa trên RiskLevel từ Checker
+		if certInfo.RiskLevel != "SAFE" {
+			resp.ShouldAlert = true
+		}
+	}
+
+	// 5. Trả về JSON
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		log.Printf("Error encoding response: %v", err)
+	}
 }
 
 func main() {
-	// --- Command-line Flag Parsing ---
-	// Allow user to specify a config file path via a flag, e.g., --config=config-100.toml
-	configFile := flag.String("config", "config.toml", "Path to the configuration file.")
-	flag.Parse()
+	http.HandleFunc("/check-cert", checkCertHandler)
 
-	// 1. Load configuration from the specified file
-	cfg, err := config.Load(*configFile)
-	if err != nil {
-		log.Fatalf("Failed to load configuration from '%s'. Error: %v", *configFile, err)
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
 	}
+	fmt.Printf("🛡️  Cert-Monitor Hybrid Agent running at http://localhost:%s/check-cert\n", port)
 
-	// --- Initialize Notifiers ---
-	var slackNotifier *notifier.SlackNotifier
-	if cfg.Notifications.Slack.Enabled {
-		webhookURL := os.Getenv(cfg.Notifications.Slack.WebhookURLEnvVar)
-		if webhookURL == "" {
-			log.Fatalf("Slack is enabled, but the environment variable %s is not set.", cfg.Notifications.Slack.WebhookURLEnvVar)
-		}
-		slackNotifier = notifier.NewSlackNotifier(webhookURL)
-		log.Println("Slack notifier is enabled.")
+	if err := http.ListenAndServe(":"+port, nil); err != nil {
+		log.Fatal(err)
 	}
-	// --- End Notifier Initialization ---
-
-	fmt.Printf("Starting check with %d domains and concurrency level of %d...\n", len(cfg.Settings.Domains), cfg.Settings.Concurrency)
-
-	// Start timer for performance measurement
-	startTime := time.Now()
-	printMemUsage()
-
-
-	// --- Worker Pool Implementation ---
-	numJobs := len(cfg.Settings.Domains)
-	jobs := make(chan string, numJobs)
-	results := make(chan CheckResult, numJobs)
-
-	var wg sync.WaitGroup
-	numWorkers := cfg.Settings.Concurrency
-	if numWorkers <= 0 {
-		numWorkers = 8 // Default to 8 workers if not specified or invalid
-	}
-
-	// 2a. Start workers
-	for w := 1; w <= numWorkers; w++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for domain := range jobs {
-				expiryDate, err := checker.CheckHost(domain)
-				results <- CheckResult{Domain: domain, ExpiryDate: expiryDate, Err: err}
-			}
-		}()
-	}
-
-	// 2b. Send jobs to the jobs channel
-	for _, domain := range cfg.Settings.Domains {
-		jobs <- domain
-	}
-	close(jobs)
-
-	// 2c. Wait for all workers to finish their jobs
-	wg.Wait()
-	close(results)
-	// --- End Worker Pool ---
-
-	// Stop timer and calculate duration
-	duration := time.Since(startTime)
-	printMemUsage()
-	fmt.Printf("Total execution time: %s\n", duration)
-
-	var foundAlerts bool
-
-	// 3. Process all results collected from the workers
-	for result := range results {
-		if result.Err != nil {
-			errorMessage := fmt.Sprintf("[ERROR] Could not check %s: %v", result.Domain, result.Err)
-			fmt.Println(errorMessage)
-			if slackNotifier != nil {
-				_ = slackNotifier.Send(errorMessage)
-			}
-			foundAlerts = true
-			continue
-		}
-
-		alertInfo := evaluator.Evaluate(result.Domain, result.ExpiryDate, cfg.Settings.AlertThresholds)
-
-		if alertInfo.ShouldAlert {
-			fmt.Println(alertInfo.Message)
-			if slackNotifier != nil {
-				err := slackNotifier.Send(alertInfo.Message)
-				if err != nil {
-					log.Printf("Failed to send slack notification for %s: %v", result.Domain, err)
-				}
-			}
-			foundAlerts = true
-		} else {
-			// Optional: print OK status for verbosity.
-			// fmt.Println(alertInfo.Message)
-		}
-	}
-
-	if !foundAlerts {
-		fmt.Println("All certificates are OK.")
-	}
-
-	// Print the final performance measurement
-	fmt.Printf("\n--- Experiment Finished ---\n")
-	fmt.Printf("Total execution time: %s\n", duration)
 }
