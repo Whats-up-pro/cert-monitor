@@ -28,6 +28,8 @@ cert-monitor/
 ├── background.js
 ├── cert-monitor
 ├── cert-monitor.exe
+├── checking.html
+├── checking.js
 ├── config.toml
 ├── go.mod
 ├── go.sum
@@ -41,153 +43,335 @@ cert-monitor/
 
 ### background.js
 ```js
-// 1. Khai báo Endpoint API
+// File: background.js
 const API_ENDPOINT = 'http://localhost:8080/check-cert';
 
-// Ngưỡng cảnh báo (chỉ dùng để tô màu Badge, logic chính nằm ở Server Go)
-const CRITICAL_DAYS = 7;
-const WARNING_DAYS = 30;
+// Cache dùng cho Passive Mode (TOFU)
+const certCache = {}; 
+// Cache dùng cho Strict Mode (Whitelist các trang đã qua phòng cách ly)
+const safeSessionCache = {}; 
 
-/**
- * Hàm gọi API Go cục bộ để kiểm tra chứng chỉ
- * và gửi kết quả về popup.js
- */
+// --- PHẦN 1: LOGIC CHẶN CỦA STRICT MODE ---
+function shouldIntercept(url) {
+    try {
+        const urlObj = new URL(url);
+        // Chỉ chặn HTTPS và không chặn trang nội bộ extension
+        if (urlObj.protocol !== 'https:') return false;
+        if (url.startsWith(chrome.runtime.getURL(""))) return false;
+
+        const hostname = urlObj.hostname;
+        
+        // Nếu đã nằm trong whitelist (đã check an toàn trong 10 phút)
+        if (safeSessionCache[hostname] && (Date.now() - safeSessionCache[hostname] < 600000)) {
+            return false;
+        }
+        return true;
+    } catch (e) { return false; }
+}
+
+// Lắng nghe sự kiện chuyển trang (Navigation)
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    // Khi trang bắt đầu load
+    if (changeInfo.status === 'loading' && tab.url) {
+        
+        // Kiểm tra xem người dùng đang Bật hay Tắt Strict Mode
+        chrome.storage.sync.get(['strictMode'], function(result) {
+            if (result.strictMode) {
+                // [STRICT MODE] -> Kiểm tra chặn
+                if (shouldIntercept(tab.url)) {
+                    console.log("[Strict Mode] Intercepting: " + tab.url);
+                    const checkingUrl = chrome.runtime.getURL('checking.html') + 
+                                        `?target=${encodeURIComponent(tab.url)}`;
+                    chrome.tabs.update(tabId, { url: checkingUrl });
+                }
+            } else {
+                // [PASSIVE MODE] -> Chỉ check ngầm, không chặn
+                // Gọi hàm check để cập nhật icon badge
+                if (tab.url.startsWith('https')) {
+                    checkAndSendResult(tab.url, tabId);
+                }
+            }
+        });
+    }
+});
+
+// Nhận tin nhắn từ "Phòng cách ly" (checking.js)
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === "mark_as_safe") {
+        const hostname = new URL(request.url).hostname;
+        safeSessionCache[hostname] = Date.now(); // Thêm vào whitelist
+        sendResponse({status: "ok"});
+    }
+
+    if (request.action === "validate_tofu") {
+        const domain = request.domain;
+        const newFingerprint = request.fingerprint;
+        
+        let isSafe = true;
+        let error = "";
+
+        // So sánh với Cache trong Background
+        if (certCache[domain]) {
+            if (certCache[domain] !== newFingerprint) {
+                isSafe = false;
+                error = "Fingerprint mismatch with Local Cache (TOFU)!";
+            }
+        } else {
+            // Nếu chưa có thì lưu luôn (Trust First Use)
+            certCache[domain] = newFingerprint;
+        }
+
+        sendResponse({ isSafe: isSafe, error: error });
+        return true; // Giữ kết nối async
+    }
+});
+
+
+// --- PHẦN 2: LOGIC KIỂM TRA & TOFU (Dùng cho cả Passive & Popup) ---
 async function checkAndSendResult(url, tabId) {
-    let hostname;
     let result = {
-        issuer: "N/A",
-        expiryDate: "N/A",
-        daysLeft: "N/A",
-        shouldAlert: false,
+        issuer: "Checking...",
+        securityScore: 0,
+        riskLevel: "UNKNOWN",
+        isMITM: false,
         error: null
     };
 
     try {
-        // 1a. Kiểm tra và trích xuất hostname
-        const urlObj = new URL(url);
-        if (urlObj.protocol !== 'https:') {
-            result.error = "Vui lòng truy cập trang HTTPS để kiểm tra.";
-            result.shouldAlert = true;
-            throw new Error("Not HTTPS"); // Dùng để chuyển thẳng xuống khối catch và gửi thông báo lỗi
-        }
-        hostname = urlObj.hostname;
-        console.log("Dữ liệu gửi đến API:", JSON.stringify({ domain: hostname }));
-        // 2. Gọi API Go cục bộ (POST request)
+        const hostname = new URL(url).hostname;
+
+        // Gọi API Go Server
         const response = await fetch(API_ENDPOINT, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ domain: hostname }) // Gửi tên miền dưới dạng JSON
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ domain: hostname })
         });
 
-        // 3. Xử lý lỗi HTTP (ví dụ: Server 404/500)
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Server returned status ${response.status}: ${errorText}`);
+        if (!response.ok) throw new Error("Agent Connection Failed");
+
+        const apiData = await response.json();
+
+        if (apiData.error) throw new Error(apiData.error);
+
+        // Map dữ liệu
+        result.issuer = apiData.issuer;
+        result.expiryDate = new Date(apiData.expiryDate).toLocaleDateString();
+        result.daysLeft = apiData.daysLeft;
+        result.securityScore = apiData.security_score;
+        result.riskLevel = apiData.risk_level;
+        result.fingerprint = apiData.fingerprint;
+        result.signatureAlgorithm = apiData.signatureAlgorithm;
+        result.shouldAlert = apiData.shouldAlert;
+
+        // TOFU Logic (Trust On First Use)
+        if (certCache[hostname]) {
+            if (certCache[hostname] !== result.fingerprint) {
+                result.isMITM = true;
+                result.error = "Certificate Fingerprint changed!";
+                result.shouldAlert = true;
+                result.securityScore = 0;
+            }
+        } else {
+            certCache[hostname] = result.fingerprint;
         }
 
-        // 4. Phân tích kết quả JSON từ Server Go
-        const apiData = await response.json();
-        console.log("Dữ liệu nhận được từ API:", apiData);
-        // 5. Ánh xạ dữ liệu JSON từ API Go vào biến result của Extension
-        // (Server Go dùng snake_case, Extension dùng camelCase)
-        result.issuer = apiData.issuer || "N/A";
-        // Chuyển đổi chuỗi ngày tháng (ISO/RFC3339) thành định dạng dễ đọc
-        const rawExpiryDate = apiData.expiryDate;
-        result.expiryDate = rawExpiryDate ? new Date(rawExpiryDate).toLocaleDateString() : "N/A";
-    
-        result.daysLeft = apiData.daysLeft !== undefined ? apiData.daysLeft : "N/A";
-        
-        result.publicKeyType = apiData.publicKeyType || "N/A";
-        result.signatureAlgorithm = apiData.signatureAlgorithm || "N/A";
-        result.shouldAlert = apiData.ShouldAlert || apiData.shouldAlert || false;
-        result.error = apiData.Error || apiData.error || null;
-        
     } catch (e) {
-        // Xử lý lỗi kết nối, lỗi JSON, hoặc lỗi Server
-        console.error("API Call Error:", e);
-        // Chỉ cập nhật lỗi nếu không phải lỗi "Not HTTPS" đã được xử lý ở trên
-        if (e.message !== "Not HTTPS") {
-            result.error = `Connection/API Error: ${e.message}`;
-        }
-        result.shouldAlert = true;
+        console.error(e);
+        result.error = e.message;
     }
 
-    // 6. Gửi kết quả cuối cùng về popup.js
+    // Gửi kết quả về Popup (nếu đang mở)
     chrome.runtime.sendMessage({
         action: "cert_status_update",
-        shouldAlert: result.shouldAlert,
-        error: result.error,
-        issuer: result.issuer,
-        expiryDate: result.expiryDate,
-        daysLeft: result.daysLeft,
-        publicKeyType: result.publicKeyType,
-        signatureAlgorithm: result.signatureAlgorithm
-    }, function() {
-        if (chrome.runtime.lastError) { /* Bỏ qua lỗi Popup đóng */ }
-    });
-    
-    // 7. Thiết lập Badge
-    const badgeColor = result.shouldAlert ? '#FF0000' : '#00AA00';
-    const badgeText = result.shouldAlert ? "!" : (result.daysLeft !== "N/A" ? String(result.daysLeft) : ""); // Hiển thị số ngày còn lại
-    chrome.action.setBadgeBackgroundColor({ color: badgeColor }); 
-    chrome.action.setBadgeText({ tabId: tabId, text: badgeText });
+        ...result
+    }).catch(() => {});
+
+    // Cập nhật Badge trên Icon
+    updateBadge(tabId, result);
 }
 
-// Lắng nghe yêu cầu kiểm tra từ Popup
-chrome.runtime.onMessage.addListener(
-    (request, sender, sendResponse) => {
-        if (request.action === "request_cert_check") {
-            checkAndSendResult(request.url, request.tabId);
-            return true; // Báo hiệu sẽ gửi phản hồi bất đồng bộ
-        }
+function updateBadge(tabId, result) {
+    let color = '#00AA00'; // Xanh
+    let text = result.securityScore ? result.securityScore.toString() : "";
+
+    if (result.isMITM) {
+        color = '#FF0000'; text = "MITM";
+    } else if (result.shouldAlert || result.riskLevel === 'CRITICAL') {
+        color = '#FF0000'; text = "!";
+    } else if (result.riskLevel === 'WARNING') {
+        color = '#FFA500'; 
     }
-);
+
+    chrome.action.setBadgeBackgroundColor({ color: color });
+    chrome.action.setBadgeText({ tabId: tabId, text: text });
+}
+
+// Lắng nghe yêu cầu từ Popup
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === "request_cert_check") {
+        checkAndSendResult(request.url, request.tabId);
+        return true;
+    }
+});
+```
+
+### checking.js
+```js
+// File: checking.js
+const API_ENDPOINT = 'http://localhost:8080/check-cert';
+
+const params = new URLSearchParams(window.location.search);
+const targetUrl = params.get('target');
+
+if (targetUrl) {
+    performCheck();
+} else {
+    document.body.innerHTML = "<h1>Invalid Target URL</h1>";
+}
+
+async function performCheck() {
+    try {
+        const hostname = new URL(targetUrl).hostname;
+
+        // BƯỚC 1: Gọi Go Server (Check điểm số & Risk)
+        const response = await fetch(API_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ domain: hostname })
+        });
+
+        if (!response.ok) throw new Error("Agent connection failed");
+        const data = await response.json();
+
+        // Check sơ bộ từ Server
+        if (data.security_score < 50 || data.risk_level === 'CRITICAL') {
+            showBlockScreen(hostname, data.error || "Low Security Score", data.security_score);
+            return; // Dừng ngay
+        }
+
+        // BƯỚC 2: ==> THÊM MỚI: Hỏi Background xem có khớp Cache (TOFU) không?
+        chrome.runtime.sendMessage({ 
+            action: "validate_tofu", 
+            domain: hostname,
+            fingerprint: data.fingerprint 
+        }, (tofuResult) => {
+            
+            if (tofuResult.isSafe) {
+                // --- CẢ 2 ĐỀU OK: Server OK + Cache OK ---
+                // Báo whitelist và chuyển trang
+                chrome.runtime.sendMessage({ action: "mark_as_safe", url: targetUrl }, () => {
+                    window.location.replace(targetUrl);
+                });
+            } else {
+                // --- SERVER OK NHƯNG CACHE SAI (MITM) ---
+                showBlockScreen(hostname, tofuResult.error, 0);
+            }
+        });
+
+    } catch (e) {
+        showBlockScreen(new URL(targetUrl).hostname, e.message, 0);
+    }
+}
+
+function showBlockScreen(domain, error, score) {
+    document.getElementById('loading-view').classList.add('hidden');
+    document.getElementById('blocked-view').classList.remove('hidden');
+    document.getElementById('main-card').classList.add('blocked');
+    
+    document.getElementById('target-domain').textContent = domain;
+    document.getElementById('error-reason').textContent = error;
+    document.getElementById('security-score').textContent = score;
+}
 ```
 
 ### popup.js
 ```js
+// File: popup.js
 document.addEventListener('DOMContentLoaded', function() {
-  const statusDiv = document.getElementById('status');
-  statusDiv.textContent = "Waiting for check results..."; 
-
-  chrome.runtime.onMessage.addListener(
-    function(request, sender, sendResponse) {
-      if (request.action === "cert_status_update") {
-        
-        let daysLeftStyle = request.shouldAlert ? 'color: red; font-weight: bold;' : 'color: green; font-weight: bold;';
-        
-        // Cập nhật HTML để hiển thị thông tin chi tiết
-        statusDiv.innerHTML = `
-          <div style="font-size: 13px;">
-            <p style="line-height: 1.5;">
-                <strong>Issuer:</strong> ${request.issuer}<br>
-                <strong>Expiration Date:</strong> ${request.expiryDate}<br>
-                <strong>Days Remaining:</strong> <span style="${daysLeftStyle}">${request.daysLeft} days</span><br>
-                <strong>Public Key Type:</strong> ${request.publicKeyType}<br>
-                <strong>Signature Algorithm:</strong> ${request.signatureAlgorithm}
-            </p>
-            ${request.error ? `<hr><span style="color: gray; font-size: 11px; font-weight: normal;">Error: ${request.error}</span>` : ''}
-          </div>
-        `;
+    const statusDiv = document.getElementById('status');
+    const strictToggle = document.getElementById('strictModeToggle');
+  
+    // 1. Load trạng thái Strict Mode từ bộ nhớ
+    chrome.storage.sync.get(['strictMode'], function(result) {
+        strictToggle.checked = result.strictMode || false;
+    });
+  
+    // 2. Lắng nghe sự kiện Bật/Tắt Switch
+    strictToggle.addEventListener('change', function() {
+        const isStrict = strictToggle.checked;
+        chrome.storage.sync.set({ strictMode: isStrict }, function() {
+            console.log("Strict Mode set to " + isStrict);
+            // Reload tab hiện tại để áp dụng ngay lập tức
+            chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+                if(tabs[0]) chrome.tabs.reload(tabs[0].id);
+            });
+        });
+    });
+  
+    // 3. Logic hiển thị thông tin cũ
+    statusDiv.innerHTML = "<p>Connecting to Hybrid Agent...</p>"; 
+  
+    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+        if (request.action === "cert_status_update") {
+          renderResult(request);
+        }
+    });
+  
+    chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+      if (tabs[0] && tabs[0].url.startsWith("https")) {
+        chrome.runtime.sendMessage({ 
+            action: "request_cert_check", 
+            url: tabs[0].url,
+            tabId: tabs[0].id
+        });
+      } else {
+        statusDiv.innerHTML = "<p style='color:gray; padding:10px;'>Please verify an HTTPS website.</p>";
       }
-    }
-  );
-
-  chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
-    if (tabs[0] && tabs[0].url) {
-      
-      statusDiv.textContent = `Checking ${new URL(tabs[0].url).hostname}...`; 
-      
-      chrome.runtime.sendMessage({ 
-          action: "request_cert_check", 
-          url: tabs[0].url,
-          tabId: tabs[0].id
-      });
-    } else {
-       statusDiv.textContent = "Please navigate to an HTTPS website.";
-    }
+    });
   });
-});
+  
+  function renderResult(data) {
+      const statusDiv = document.getElementById('status');
+      
+      let scoreColor = '#2ecc71'; // Green
+      if (data.securityScore < 50) scoreColor = '#e74c3c'; // Red
+      else if (data.securityScore < 80) scoreColor = '#f39c12'; // Orange
+  
+      let html = `
+          <div style="text-align: center; padding: 15px; background: #f9f9f9; border-bottom: 1px solid #eee;">
+              <div style="font-size: 36px; color: ${scoreColor}; font-weight: bold;">
+                  ${data.securityScore !== undefined ? data.securityScore : "?"}
+              </div>
+              <div style="font-size: 12px; color: #7f8c8d; text-transform: uppercase; letter-spacing: 1px;">Security Score</div>
+          </div>
+      `;
+  
+      if (data.isMITM) {
+          html += `
+              <div style="background-color: #c0392b; color: white; padding: 10px; margin: 10px 0; font-weight: bold; text-align: center; border-radius: 4px;">
+                  🚨 MITM ATTACK DETECTED 🚨
+                  <div style="font-size: 10px; font-weight: normal;">Certificate fingerprint mismatch!</div>
+              </div>
+          `;
+      } else if (data.error) {
+          html += `<div style="color: #c0392b; padding: 10px; font-size: 12px;">Error: ${data.error}</div>`;
+      }
+  
+      if (data.issuer) {
+          html += `
+              <div style="padding: 15px; font-size: 13px; line-height: 1.6;">
+                  <div><strong>Issuer:</strong> ${data.issuer}</div>
+                  <div><strong>Expires:</strong> ${data.expiryDate}</div>
+                  <div><strong>Days Left:</strong> <span style="color:${data.daysLeft < 30 ? 'red' : 'green'}">${data.daysLeft}</span></div>
+                  <div><strong>Algorithm:</strong> ${data.signatureAlgorithm}</div>
+                  <div style="margin-top: 8px; font-size: 10px; color: #95a5a6; word-break: break-all;">
+                      <strong>Fingerprint (SHA256):</strong><br>
+                      ${data.fingerprint ? data.fingerprint.substring(0, 20) + "..." : "N/A"}
+                  </div>
+              </div>
+          `;
+      }
+  
+      statusDiv.innerHTML = html;
+  }
 ```
