@@ -147,7 +147,7 @@ async function checkAndSendResult(url, tabId) {
     try {
         const hostname = new URL(url).hostname;
 
-        // 1. Lấy dữ liệu từ Go Server (Agent)
+        // 1. Gọi API Go Server
         const response = await fetch(API_ENDPOINT, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -157,17 +157,39 @@ async function checkAndSendResult(url, tabId) {
         if(!response.ok) throw new Error("Agent Failed");
         const apiData = await response.json();
         
+        // Merge dữ liệu
         result = { ...result, ...apiData };
 
         // 2. Lấy dữ liệu từ Native App (Local)
         const localFingerprint = await getNativeFingerprint(hostname);
 
-        // 3. So sánh
-        if (localFingerprint && localFingerprint !== result.fingerprint) {
-            result.isMITM = true;
-            result.error = "MITM DETECTED (Native Check)";
-            result.shouldAlert = true;
-            result.securityScore = 0;
+        // 3. SO SÁNH (LOGIC MỚI - Hỗ trợ Mảng Fingerprints)
+        if (localFingerprint) {
+            const localFpClean = localFingerprint.toLowerCase();
+            let isMatch = false;
+
+            // Kiểm tra: Server có trả về danh sách fingerprints không?
+            if (apiData.fingerprints && Array.isArray(apiData.fingerprints) && apiData.fingerprints.length > 0) {
+                // Cách 1: Duyệt mảng để tìm
+                // Nếu vân tay local nằm trong danh sách các vân tay hợp lệ của Server -> AN TOÀN
+                isMatch = apiData.fingerprints.some(fp => fp.toLowerCase() === localFpClean);
+                
+                console.log(`[Check] Local: ${localFpClean}`);
+                console.log(`[Check] Remote List:`, apiData.fingerprints);
+                console.log(`[Check] Match Found: ${isMatch}`);
+
+            } else if (apiData.fingerprint) {
+                // Cách 2: Fallback (Nếu Server bản cũ chỉ trả về 1 cái)
+                isMatch = (localFpClean === apiData.fingerprint.toLowerCase());
+            }
+
+            // KẾT LUẬN
+            if (!isMatch) {
+                result.isMITM = true;
+                result.error = "MITM DETECTED! Local cert does not match any valid Agent certs.";
+                result.shouldAlert = true;
+                result.securityScore = 0;
+            }
         }
 
     } catch (e) {
