@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http" // Quan trọng
-	"net/url"  // Quan trọng
+	// "net/url"  // Quan trọng
 	"os"
 	"strings"
 	"time"
@@ -72,17 +72,17 @@ func getSystemCertFingerprint(domain string) (string, string) {
 	}
 
 	// 1. CẤU HÌNH PROXY BURP SUITE
-	proxyUrl, err := url.Parse("http://127.0.0.1:8888") //Comment sau khi test xong
-	if err != nil { //Comment sau khi test xong
-		return "", "Proxy Config Error: " + err.Error() //Comment sau khi test xong
-	} //Comment sau khi test xong
+	// proxyUrl, err := url.Parse("http://127.0.0.1:8080") //Comment sau khi test xong
+	// if err != nil { //Comment sau khi test xong
+	// 	return "", "Proxy Config Error: " + err.Error() //Comment sau khi test xong
+	// } //Comment sau khi test xong
 
 	// 2. Cấu hình TLS (Bỏ qua verify để chấp nhận Cert của Burp)
 	conf := &tls.Config{InsecureSkipVerify: true}
 
 	// 3. Tạo Transport đi qua Proxy
 	transport := &http.Transport{
-		Proxy:           http.ProxyURL(proxyUrl), //Comment sau khi test xong
+		// Proxy:           http.ProxyURL(proxyUrl), //Comment sau khi test xong
 		TLSClientConfig: conf,
 	}
 

@@ -36,7 +36,7 @@ async function performCheck() {
         chrome.runtime.sendMessage({ 
             action: "validate_tofu", 
             domain: hostname, 
-            fingerprint: data.fingerprint 
+            fingerprints: data.fingerprints
         }, (tofuResult) => {
             
             if (tofuResult && tofuResult.isSafe) {

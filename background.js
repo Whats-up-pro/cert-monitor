@@ -4,7 +4,7 @@
 const API_ENDPOINT = 'http://localhost:8080/check-cert';
 const NATIVE_HOST_NAME = "com.certmonitor.native"; // Phải khớp với file nm_host.json
 
-// Cache Whitelist phiên làm việc (Để Strict Mode không chặn lặp lại các trang đã an toàn)
+// Cache Whitelist phiên làm việc
 const safeSessionCache = {}; 
 
 // Biến toàn cục lưu trạng thái Strict Mode
@@ -18,13 +18,13 @@ chrome.storage.sync.get(['strictMode'], (result) => {
 chrome.storage.onChanged.addListener((changes, namespace) => {
     if (changes.strictMode) {
         isStrictMode = changes.strictMode.newValue;
-        if (!isStrictMode) { // Tắt Strict -> Xóa whitelist
+        if (!isStrictMode) { 
             for (let member in safeSessionCache) delete safeSessionCache[member];
         }
     }
 });
 
-// --- HÀM GỌI NATIVE APP (Lấy Fingerprint thật từ Windows) ---
+// --- HÀM GỌI NATIVE APP ---
 function getNativeFingerprint(domain) {
     return new Promise((resolve) => {
         try {
@@ -32,9 +32,8 @@ function getNativeFingerprint(domain) {
             chrome.runtime.sendNativeMessage(NATIVE_HOST_NAME, { domain: domain }, (response) => {
                 if (chrome.runtime.lastError) {
                     console.error("Native Error:", chrome.runtime.lastError.message);
-                    resolve(null); // Lỗi: Chưa cài App Native hoặc sai cấu hình
+                    resolve(null);
                 } else {
-                    // Native App trả về: { fingerprint: "...", error: "" }
                     if (response && response.fingerprint) {
                         resolve(response.fingerprint);
                     } else {
@@ -54,11 +53,10 @@ function shouldIntercept(url) {
     try {
         const urlObj = new URL(url);
         if (urlObj.protocol !== 'https:') return false;
-        if (url.startsWith(chrome.runtime.getURL(""))) return false; // Không chặn trang nội bộ
+        if (url.startsWith(chrome.runtime.getURL(""))) return false;
 
         const hostname = urlObj.hostname;
         
-        // Nếu đã Whitelist (trong 10 phút)
         if (safeSessionCache[hostname] && (Date.now() - safeSessionCache[hostname] < 600000)) {
             return false;
         }
@@ -70,7 +68,6 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     if (tab.url && (changeInfo.status === 'loading' || changeInfo.url)) {
         if (isStrictMode) {
             if (shouldIntercept(tab.url)) {
-                // CHẶN & ĐÁ SANG PHÒNG CÁCH LY
                 const checkingUrl = chrome.runtime.getURL('checking.html') + 
                                     `?target=${encodeURIComponent(tab.url)}`;
                 chrome.tabs.update(tabId, { url: checkingUrl });
@@ -87,44 +84,48 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 // --- PHẦN 2: XỬ LÝ TIN NHẮN (QUAN TRỌNG) ---
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     
-    // 2.1. Whitelist (Từ checking.js báo về)
+    // 2.1. Whitelist
     if (request.action === "mark_as_safe") {
         const hostname = new URL(request.url).hostname;
         safeSessionCache[hostname] = Date.now();
         sendResponse({status: "ok"});
     }
 
-    // 2.2. VALIDATE TOFU (Dùng Native App thay vì Cache RAM)
-    // checking.js gửi Fingerprint chuẩn (từ Server) về -> Background so sánh với máy thật
+    // 2.2. VALIDATE TOFU (STRICT MODE)
+    // SỬA ĐỔI: Hỗ trợ kiểm tra danh sách Fingerprints (Multi-IP)
     if (request.action === "validate_tofu") {
         const domain = request.domain;
-        const serverFingerprint = request.fingerprint;
         
-        // Gọi xuống file .exe để lấy cert thực tế đang hiển thị trên máy
+        // Nhận cả danh sách (nếu có) hoặc 1 cái (fallback)
+        const validFingerprints = request.fingerprints || [];
+        if (request.fingerprint) validFingerprints.push(request.fingerprint);
+
         getNativeFingerprint(domain).then((localFingerprint) => {
             let isSafe = true;
             let error = "";
 
             if (!localFingerprint) {
-                // Không lấy được (Lỗi Native App) -> Tùy bạn muốn chặn hay cho qua
-                // Ở đây ta báo lỗi để biết đường fix
                 isSafe = false;
-                error = "Native Host Error: Cannot read OS Certificate (Did you install the Native App?)";
-            } else if (localFingerprint !== serverFingerprint) {
-                // ==> PHÁT HIỆN MITM TỰ ĐỘNG <==
-                // Server (mạng sạch) thấy A. Máy (qua Burp) thấy B.
-                isSafe = false;
-                error = `MITM DETECTED! Local fingerprint (${localFingerprint.substring(0,8)}...) differs from Agent (${serverFingerprint.substring(0,8)}...)`;
+                error = "Native Host Unreachable";
+            } else {
+                const localClean = localFingerprint.toLowerCase();
                 
-                console.warn(`MITM ALERT on ${domain}!`);
-                console.warn(`Local (OS): ${localFingerprint}`);
-                console.warn(`Remote (Go): ${serverFingerprint}`);
+                // SO SÁNH THÔNG MINH: Local có nằm trong danh sách Valid không?
+                const isMatch = validFingerprints.some(fp => fp.toLowerCase() === localClean);
+
+                if (!isMatch) {
+                    isSafe = false;
+                    error = `MITM DETECTED! Local (${localClean.substring(0,8)}...) not found in valid Agent list.`;
+                    console.warn(`MITM ALERT ${domain}: Local mismatch`);
+                } else {
+                    console.log(`Integrity Confirmed for ${domain}`);
+                }
             }
 
             sendResponse({ isSafe: isSafe, error: error });
         });
 
-        return true; // Giữ kết nối async
+        return true; 
     }
 
     // 2.3. Passive Check
@@ -134,7 +135,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
 });
 
-// --- PHẦN 3: LOGIC CHECK PASSIVE (Cũng dùng Native) ---
+// --- PHẦN 3: LOGIC CHECK PASSIVE ---
 async function checkAndSendResult(url, tabId) {
     let result = {
         issuer: "Checking...",
@@ -157,36 +158,26 @@ async function checkAndSendResult(url, tabId) {
         if(!response.ok) throw new Error("Agent Failed");
         const apiData = await response.json();
         
-        // Merge dữ liệu
         result = { ...result, ...apiData };
 
-        // 2. Lấy dữ liệu từ Native App (Local)
+        // 2. Lấy Native Fingerprint
         const localFingerprint = await getNativeFingerprint(hostname);
 
-        // 3. SO SÁNH (LOGIC MỚI - Hỗ trợ Mảng Fingerprints)
+        // 3. SO SÁNH (MULTI-IP AWARE)
         if (localFingerprint) {
-            const localFpClean = localFingerprint.toLowerCase();
+            const localClean = localFingerprint.toLowerCase();
             let isMatch = false;
 
-            // Kiểm tra: Server có trả về danh sách fingerprints không?
-            if (apiData.fingerprints && Array.isArray(apiData.fingerprints) && apiData.fingerprints.length > 0) {
-                // Cách 1: Duyệt mảng để tìm
-                // Nếu vân tay local nằm trong danh sách các vân tay hợp lệ của Server -> AN TOÀN
-                isMatch = apiData.fingerprints.some(fp => fp.toLowerCase() === localFpClean);
-                
-                console.log(`[Check] Local: ${localFpClean}`);
-                console.log(`[Check] Remote List:`, apiData.fingerprints);
-                console.log(`[Check] Match Found: ${isMatch}`);
-
+            // Ưu tiên check mảng fingerprints
+            if (apiData.fingerprints && apiData.fingerprints.length > 0) {
+                isMatch = apiData.fingerprints.some(fp => fp.toLowerCase() === localClean);
             } else if (apiData.fingerprint) {
-                // Cách 2: Fallback (Nếu Server bản cũ chỉ trả về 1 cái)
-                isMatch = (localFpClean === apiData.fingerprint.toLowerCase());
+                isMatch = (localClean === apiData.fingerprint.toLowerCase());
             }
 
-            // KẾT LUẬN
             if (!isMatch) {
                 result.isMITM = true;
-                result.error = "MITM DETECTED! Local cert does not match any valid Agent certs.";
+                result.error = "MITM DETECTED (Native Check)";
                 result.shouldAlert = true;
                 result.securityScore = 0;
             }
