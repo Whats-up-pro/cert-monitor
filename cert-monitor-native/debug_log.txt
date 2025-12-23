@@ -146,3 +146,83 @@
 2025-12-03T08:48:32+07:00: Received Request for: youtube.com
 2025-12-03T08:48:37+07:00: Result: , Error: Connection Error: Head "https://youtube.com": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
 2025-12-03T08:48:37+07:00: Stdin EOF - Exiting
+2025-12-05T14:58:39+07:00: Native App Started
+2025-12-05T14:58:39+07:00: Received Request for: facebook.com
+2025-12-05T14:58:40+07:00: Result: 8ae5335b0a37b611695ccda46871c65852b3d0c91ac958af2d66ff9ffed3e29b, Error: 
+2025-12-05T14:58:40+07:00: Stdin EOF - Exiting
+2025-12-05T14:59:43+07:00: Native App Started
+2025-12-05T14:59:43+07:00: Received Request for: www.youtube.com
+2025-12-05T14:59:43+07:00: Result: 9a1d21f21e508b50f29baf942bf374783767af9a04d43d42cdac9ca838faf27e, Error: 
+2025-12-05T14:59:43+07:00: Stdin EOF - Exiting
+2025-12-05T14:59:54+07:00: Native App Started
+2025-12-05T14:59:54+07:00: Received Request for: www.youtube.com
+2025-12-05T14:59:54+07:00: Result: 9a1d21f21e508b50f29baf942bf374783767af9a04d43d42cdac9ca838faf27e, Error: 
+2025-12-05T14:59:54+07:00: Stdin EOF - Exiting
+2025-12-05T15:01:49+07:00: Native App Started
+2025-12-05T15:01:49+07:00: Received Request for: www.youtube.com
+2025-12-05T15:01:49+07:00: Result: 9a1d21f21e508b50f29baf942bf374783767af9a04d43d42cdac9ca838faf27e, Error: 
+2025-12-05T15:01:49+07:00: Stdin EOF - Exiting
+2025-12-05T15:02:05+07:00: Native App Started
+2025-12-05T15:02:05+07:00: Received Request for: www.youtube.com
+2025-12-05T15:02:06+07:00: Result: 9a1d21f21e508b50f29baf942bf374783767af9a04d43d42cdac9ca838faf27e, Error: 
+2025-12-05T15:02:06+07:00: Stdin EOF - Exiting
+2025-12-05T15:02:14+07:00: Native App Started
+2025-12-05T15:02:14+07:00: Received Request for: www.youtube.com
+2025-12-05T15:02:14+07:00: Result: 9a1d21f21e508b50f29baf942bf374783767af9a04d43d42cdac9ca838faf27e, Error: 
+2025-12-05T15:02:14+07:00: Stdin EOF - Exiting
+2025-12-05T15:02:16+07:00: Native App Started
+2025-12-05T15:02:16+07:00: Received Request for: www.youtube.com
+2025-12-05T15:02:16+07:00: Result: 9a1d21f21e508b50f29baf942bf374783767af9a04d43d42cdac9ca838faf27e, Error: 
+2025-12-05T15:02:16+07:00: Stdin EOF - Exiting
+2025-12-05T15:02:17+07:00: Native App Started
+2025-12-05T15:02:17+07:00: Received Request for: www.youtube.com
+2025-12-05T15:02:17+07:00: Result: 9a1d21f21e508b50f29baf942bf374783767af9a04d43d42cdac9ca838faf27e, Error: 
+2025-12-05T15:02:17+07:00: Stdin EOF - Exiting
+2025-12-05T15:12:14+07:00: Native App Started
+2025-12-05T15:12:14+07:00: Received Request for: www.youtube.com
+2025-12-05T15:12:15+07:00: Result: 30d1ce982febe24a53221cbfbb4ebc2ccae1cecfb79d2026f9552a6bedadda83, Error: 
+2025-12-05T15:12:15+07:00: Stdin EOF - Exiting
+2025-12-05T15:12:26+07:00: Native App Started
+2025-12-05T15:12:26+07:00: Received Request for: www.facebook.com
+2025-12-05T15:12:26+07:00: Result: 4c58c3df59bd5c68104bae7868878b81633f5d5802d0761ae6c9341420216c19, Error: 
+2025-12-05T15:12:26+07:00: Stdin EOF - Exiting
+2025-12-05T15:12:45+07:00: Native App Started
+2025-12-05T15:12:45+07:00: Received Request for: github.com
+2025-12-05T15:12:45+07:00: Result: b8bb81876833873942045a8df8f06219e00602ebcb4384c7abc24f18379c87f5, Error: 
+2025-12-05T15:12:45+07:00: Stdin EOF - Exiting
+2025-12-05T15:12:56+07:00: Native App Started
+2025-12-05T15:12:56+07:00: Received Request for: www.google.com
+2025-12-05T15:12:57+07:00: Result: cd3af03bb327babee9d121f1a4fbd83f0926ab585c18951399122a8f9c0bf1c0, Error: 
+2025-12-05T15:12:57+07:00: Stdin EOF - Exiting
+2025-12-05T15:13:05+07:00: Native App Started
+2025-12-05T15:13:05+07:00: Received Request for: stackoverflow.com
+2025-12-05T15:13:06+07:00: Result: 47947d1ffd1e45b6db402693d4eab0b036dc62943ca6247945e587931f2d1718, Error: 
+2025-12-05T15:13:06+07:00: Stdin EOF - Exiting
+2025-12-05T15:13:27+07:00: Native App Started
+2025-12-05T15:13:27+07:00: Received Request for: portswigger.net
+2025-12-05T15:13:28+07:00: Result: db94acb8adf59337e7b019a6b3788586cff87e02a6fd07086cfdb8f2e966cad2, Error: 
+2025-12-05T15:13:28+07:00: Stdin EOF - Exiting
+2025-12-05T15:14:56+07:00: Native App Started
+2025-12-05T15:14:56+07:00: Received Request for: orcid.org
+2025-12-05T15:14:57+07:00: Result: f4ac949d0050bdeacd0808448cfcc231b6a7cd39eb48f58f6ac2bae5152ca15c, Error: 
+2025-12-05T15:14:57+07:00: Stdin EOF - Exiting
+2025-12-05T15:15:10+07:00: Native App Started
+2025-12-05T15:15:10+07:00: Received Request for: 0a3500af03963dbf8034e91f00780072.web-security-academy.net
+2025-12-05T15:15:15+07:00: Result: , Error: Connection Error: Head "https://0a3500af03963dbf8034e91f00780072.web-security-academy.net": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+2025-12-05T15:15:15+07:00: Stdin EOF - Exiting
+2025-12-05T15:15:45+07:00: Native App Started
+2025-12-05T15:15:45+07:00: Received Request for: facebook.com
+2025-12-05T15:15:46+07:00: Result: 4c58c3df59bd5c68104bae7868878b81633f5d5802d0761ae6c9341420216c19, Error: 
+2025-12-05T15:15:46+07:00: Stdin EOF - Exiting
+2025-12-06T00:14:25+07:00: Native App Started
+2025-12-06T00:14:25+07:00: Received Request for: www.youtube.com
+2025-12-06T00:14:25+07:00: Native App Started
+2025-12-06T00:14:25+07:00: Received Request for: www.youtube.com
+2025-12-06T00:14:26+07:00: Result: c7a3e468d6d886e7c6e2d6e31dda609a357e719ef19126574743917ccebb0717, Error: 
+2025-12-06T00:14:26+07:00: Stdin EOF - Exiting
+2025-12-06T00:14:26+07:00: Result: c7a3e468d6d886e7c6e2d6e31dda609a357e719ef19126574743917ccebb0717, Error: 
+2025-12-06T00:14:26+07:00: Stdin EOF - Exiting
+2025-12-06T00:16:59+07:00: Native App Started
+2025-12-06T00:16:59+07:00: Received Request for: www.overleaf.com
+2025-12-06T00:16:59+07:00: Result: 53f142132b326c968c7cf48f265803e9b22720957b6e649a56bfd12735aad184, Error: 
+2025-12-06T00:16:59+07:00: Stdin EOF - Exiting

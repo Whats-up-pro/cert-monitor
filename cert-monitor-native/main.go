@@ -71,7 +71,7 @@ func getSystemCertFingerprint(domain string) (string, string) {
 		domain += ":443"
 	}
 
-	// 1. CẤU HÌNH PROXY BURP SUITE
+	// // 1. CẤU HÌNH PROXY BURP SUITE
 	// proxyUrl, err := url.Parse("http://127.0.0.1:8080") //Comment sau khi test xong
 	// if err != nil { //Comment sau khi test xong
 	// 	return "", "Proxy Config Error: " + err.Error() //Comment sau khi test xong

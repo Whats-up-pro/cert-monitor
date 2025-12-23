@@ -14,7 +14,14 @@
         
         .hidden { display: none; }
         .blocked { border-top: 5px solid #e74c3c; }
-        button { margin-top: 25px; padding: 12px 24px; border: none; background: #34495e; color: white; cursor: pointer; border-radius: 6px; }
+        .warning { border-top: 5px solid #f39c12; } /* Style cho cảnh báo mềm */
+
+        button { margin-top: 25px; padding: 12px 24px; border: none; background: #34495e; color: white; cursor: pointer; border-radius: 6px; font-size: 14px; }
+        button:hover { background: #2c3e50; }
+
+        /* Nút Bypass (Màu xám) */
+        #bypass-btn { background: #95a5a6; margin-left: 10px; }
+        #bypass-btn:hover { background: #7f8c8d; }
     </style>
 </head>
 <body>
@@ -26,9 +33,9 @@
         </div>
 
         <div id="blocked-view" class="hidden">
-            <div style="font-size: 48px; margin-bottom: 20px;">Warning</div>
-            <h2 style="color: #c0392b;">Connection Blocked</h2>
-            <p style="font-weight: bold;">Potential Man-in-the-Middle Attack Detected!</p>
+            <div style="font-size: 48px; margin-bottom: 20px;">WARNING</div>
+            <h2 id="status-title" style="color: #c0392b;">Connection Blocked</h2>
+            <p style="font-weight: bold;">Potential Security Risk Detected!</p>
             
             <div style="background: #fff5f5; padding: 15px; border-radius: 8px; border: 1px solid #ffcccc; margin-top: 20px; font-size: 13px; color: #555; text-align: left;">
                 <div><strong>Target:</strong> <span id="target-domain">...</span></div>
@@ -36,7 +43,10 @@
                 <div><strong>Score:</strong> <span id="security-score">0</span>/100</div>
             </div>
 
-            <button onclick="history.back()">Go Back to Safety</button>
+            <div style="margin-top: 20px;">
+                <button onclick="history.back()">Go Back (Safe)</button>
+                <button id="bypass-btn" style="display: none;">Proceed (Unsafe)</button>
+            </div>
         </div>
     </div>
     <script src="checking.js"></script>

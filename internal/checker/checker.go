@@ -11,9 +11,11 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/miekg/dns" // Thư viện hỗ trợ tạo gói tin DNS tùy chỉnh (ECS)
 )
 
-// CertInfo cập nhật: Chứa danh sách Fingerprint thay vì 1 cái
+// CertInfo: Chứa thông tin phân tích chứng chỉ và danh sách Fingerprint
 type CertInfo struct {
 	Domain             string
 	ExpiryDate         time.Time
@@ -21,27 +23,97 @@ type CertInfo struct {
 	PublicKeyType      string
 	SignatureAlgorithm string
 	
-	// Thay đổi: Danh sách các vân tay hợp lệ (từ nhiều IP của CDN)
+	// ValidFingerprints: Danh sách các vân tay hợp lệ (từ nhiều IP của CDN)
 	ValidFingerprints []string 
 	
 	SecurityScore int    
 	RiskLevel     string 
 	DaysLeft      int
-	CheckDuration time.Duration // Thêm thời gian đo đạc cho bài báo
+	CheckDuration time.Duration 
 }
 
-// CheckHost nâng cấp: Kiểm tra đa điểm (Multi-IP Check)
-func CheckHost(hostname string) (CertInfo, error) {
-	start := time.Now()
-
-	// 1. Phân giải DNS để lấy tất cả IP (Xử lý vấn đề CDN)
-	cleanHost := strings.TrimSuffix(hostname, ":443")
-	if strings.Contains(cleanHost, ":") { // Nếu input có port
-		host, _, _ := net.SplitHostPort(hostname)
-		cleanHost = host
+// LookupHostWithECS: Phân giải DNS có sử dụng EDNS Client Subnet
+// Giúp Agent lấy được IP của domain tối ưu cho vị trí của User (clientIP)
+func LookupHostWithECS(domain string, clientIP string) ([]string, error) {
+	// 1. Kiểm tra đầu vào: Nếu không có ClientIP hoặc là Localhost, dùng DNS thường
+	if clientIP == "" || clientIP == "127.0.0.1" || clientIP == "::1" {
+		return net.LookupHost(domain)
 	}
 
-	ips, err := net.LookupHost(cleanHost)
+	// Parse IP để đảm bảo đúng định dạng
+	parsedIP := net.ParseIP(clientIP)
+	if parsedIP == nil {
+		return net.LookupHost(domain)
+	}
+
+	// 2. Cấu hình DNS Client
+	c := new(dns.Client)
+	c.Timeout = 2 * time.Second // Timeout ngắn để không làm chậm trải nghiệm
+	m := new(dns.Msg)
+	
+	// Set câu hỏi: Lấy bản ghi A (IPv4)
+	// Lưu ý: Domain phải kết thúc bằng dấu chấm (FQDN)
+	m.SetQuestion(dns.Fqdn(domain), dns.TypeA)
+	m.RecursionDesired = true
+
+	// 3. Tạo Option ECS (EDNS0_SUBNET)
+	o := new(dns.OPT)
+	o.Hdr.Name = "."
+	o.Hdr.Rrtype = dns.TypeOPT
+	
+	e := new(dns.EDNS0_SUBNET)
+	e.Code = dns.EDNS0SUBNET
+	e.Family = 1 // 1 = IPv4, 2 = IPv6
+	e.SourceNetmask = 24 // Chỉ gửi Subnet /24 để bảo vệ quyền riêng tư người dùng
+	e.SourceScope = 0
+	e.Address = parsedIP.To4() // Gửi IP của User đi kèm query
+	
+	o.Option = append(o.Option, e)
+	m.Extra = append(m.Extra, o)
+
+	// 4. Gửi Query tới Google Public DNS (8.8.8.8 hỗ trợ tốt ECS)
+	// Có thể đổi thành Cloudflare (1.1.1.1) hoặc OpenDNS nếu muốn
+	r, _, err := c.Exchange(m, "8.8.8.8:53")
+	
+	// Nếu lỗi ECS (timeout hoặc lỗi mạng), Fallback về lookup thường
+	if err != nil {
+		// Log warning nếu cần thiết
+		return net.LookupHost(domain)
+	}
+
+	// 5. Trích xuất IP từ câu trả lời
+	var ips []string
+	for _, ans := range r.Answer {
+		if a, ok := ans.(*dns.A); ok {
+			ips = append(ips, a.A.String())
+		}
+	}
+
+	// Nếu ECS không trả về kết quả nào (hiếm), dùng lookup thường
+	if len(ips) == 0 {
+		return net.LookupHost(domain)
+	}
+
+	return ips, nil
+}
+
+// CheckHost: Hàm chính thực hiện kiểm tra Multi-IP Aware
+// Update: Thêm tham số clientIP để hỗ trợ ECS
+func CheckHost(hostname string, clientIP string) (CertInfo, error) {
+	start := time.Now()
+
+	// 1. Xử lý hostname (loại bỏ port nếu có)
+	cleanHost := strings.TrimSuffix(hostname, ":443")
+	if strings.Contains(cleanHost, ":") { 
+		host, _, err := net.SplitHostPort(hostname)
+		if err == nil {
+			cleanHost = host
+		}
+	}
+
+	// 2. Phân giải DNS thông minh (ECS Aware)
+	// Agent sẽ cố gắng "nhìn" thấy các IP giống như User nhìn thấy
+	ips, err := LookupHostWithECS(cleanHost, clientIP)
 	if err != nil {
 		return CertInfo{}, fmt.Errorf("DNS lookup failed: %v", err)
 	}
@@ -52,42 +124,47 @@ func CheckHost(hostname string) (CertInfo, error) {
 	var mutex sync.Mutex
 	var wg sync.WaitGroup
 
-	// Giới hạn check tối đa 5 IP để tránh quá lâu (Performance trade-off)
+	// Giới hạn check tối đa 5 IP để tối ưu hiệu năng
 	maxIPs := 5
 	if len(ips) > maxIPs {
 		ips = ips[:maxIPs]
 	}
 
-	// 2. Chạy song song kiểm tra từng IP
+	// 3. Quét song song (Concurrent Scanning)
 	for _, ip := range ips {
 		wg.Add(1)
 		go func(targetIP string) {
 			defer wg.Done()
 			
-			// Dial thẳng tới IP nhưng dùng SNI là hostname (cơ chế của CDN)
+			// Cấu hình TLS:
+			// - InsecureSkipVerify: True (Để lấy cert về phân tích, không để Go chặn)
+			// - ServerName: cleanHost (Bắt buộc để SNI hoạt động với CDN)
 			conf := &tls.Config{
 				InsecureSkipVerify: true,
-				ServerName:         cleanHost, // QUAN TRỌNG: SNI
+				ServerName:         cleanHost, 
 			}
 			
+			// Timeout kết nối ngắn (3s)
 			dialer := &net.Dialer{Timeout: 3 * time.Second}
 			target := net.JoinHostPort(targetIP, "443")
 			
 			conn, err := tls.DialWithDialer(dialer, "tcp", target, conf)
 			if err != nil {
-				return
+				return // Bỏ qua IP chết
 			}
 			defer conn.Close()
 
+			// Lấy chuỗi chứng chỉ
 			certs := conn.ConnectionState().PeerCertificates
 			if len(certs) > 0 {
-				cert := certs[0]
+				cert := certs[0] // Leaf Certificate
 				hash := sha256.Sum256(cert.Raw)
 				fp := hex.EncodeToString(hash[:])
 
 				mutex.Lock()
 				fingerprintMap[fp] = true
-				if leafCert == nil { // Lấy mẫu 1 cert để điền thông tin chung
+				// Lưu mẫu 1 cert đầy đủ để lấy thông tin metadata (Issuer, Expiry...)
+				if leafCert == nil { 
 					leafCert = cert
 				}
 				mutex.Unlock()
@@ -100,31 +177,34 @@ func CheckHost(hostname string) (CertInfo, error) {
 		return CertInfo{}, fmt.Errorf("failed to retrieve certificate from any IP of %s", hostname)
 	}
 
-	// Chuyển map sang slice
+	// Chuyển Map thành Slice
 	var validFingerprints []string
 	for fp := range fingerprintMap {
 		validFingerprints = append(validFingerprints, fp)
 	}
 
-	// 3. Tính toán các chỉ số (Giữ nguyên logic cũ)
+	// 4. Tính toán điểm số an toàn (Heuristic Scoring)
 	daysLeft := int(time.Until(leafCert.NotAfter).Hours() / 24)
 	score := 100
 	risk := "SAFE"
 
+	// Phạt điểm theo thời hạn
 	if daysLeft < 0 {
-		score = 0; risk = "CRITICAL"
+		score = 0; risk = "CRITICAL" // Hết hạn
 	} else if daysLeft < 7 {
 		score -= 40; risk = "WARNING"
 	} else if daysLeft < 30 {
 		score -= 20; risk = "WARNING"
 	}
 
+	// Phạt điểm theo thuật toán yếu
 	algo := leafCert.SignatureAlgorithm.String()
-	if strings.Contains(strings.ToUpper(algo), "SHA1") || strings.Contains(strings.ToUpper(algo), "MD5") {
+	algoUpper := strings.ToUpper(algo)
+	if strings.Contains(algoUpper, "SHA1") || strings.Contains(algoUpper, "MD5") {
 		score -= 50; risk = "CRITICAL"
 	}
 
-	// Lấy Issuer
+	// Xử lý tên Issuer hiển thị đẹp hơn
 	issuerName := leafCert.Issuer.CommonName
 	if issuerName == "" && len(leafCert.Issuer.Organization) > 0 {
 		issuerName = leafCert.Issuer.Organization[0]
@@ -138,7 +218,7 @@ func CheckHost(hostname string) (CertInfo, error) {
 		Issuer:             issuerName,
 		PublicKeyType:      fmt.Sprintf("%v", leafCert.PublicKeyAlgorithm),
 		SignatureAlgorithm: algo,
-		ValidFingerprints:  validFingerprints, // Trả về danh sách
+		ValidFingerprints:  validFingerprints, // Output quan trọng nhất
 		SecurityScore:      score,
 		RiskLevel:          risk,
 		DaysLeft:           daysLeft,

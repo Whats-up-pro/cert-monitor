@@ -1,95 +1,88 @@
-# Cert-Monitor  cert-monitor
+# Cert-Monitor: Hybrid MITM Detection System
 
 ![Go Version](https://img.shields.io/badge/go-1.22+-blue.svg)
+![Platform](https://img.shields.io/badge/platform-Chrome%20Extension%20%7C%20Windows-lightgrey.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
-A simple, efficient, and automated tool for monitoring SSL/TLS certificate expiration. Cert-Monitor helps system administrators track certificate expiry dates across multiple websites and sends timely alerts before they expire, preventing service disruptions.
+**Cert-Monitor** is a real-time Man-in-the-Middle (MITM) detection system designed for browsers. It utilizes a hybrid architecture combining a **Chrome Extension**, a **Native Messaging Host**, and a **Backend Analysis Server** to cross-verify SSL/TLS certificate integrity.
 
-This project is a submission for the NT140: Network Security course.
+Course Project: **NT140 - Network Security**.
 
-## Features ✨
+## 🚀 Key Features
 
-* **Certificate Expiry Checks**: Connects to a list of specified domains over port 443, fetches SSL/TLS certificate information, and extracts the expiration date.
-* **Flexible Configuration**: Allows users to easily define a list of domains to monitor and set multiple warning thresholds (e.g., alert 30, 15, and 7 days before expiry) via a simple `config.toml` file.
-* **Alerting**: Integrates with popular notification channels to send alerts. Currently supports:
-    * Slack (via Incoming Webhooks)
-* **Run as a Service**: Can be configured to run periodically (e.g., once a day) using standard system schedulers like `systemd timers` or `cron`.
+* **Hybrid Verification:** Cross-references certificate fingerprints from three distinct perspectives to eliminate blind spots:
+    1.  **Browser View:** The certificate seen by the browser user.
+    2.  **Native OS View:** The certificate fetched directly from the OS store (bypassing browser hooks via Native Host).
+    3.  **Global View:** The actual certificate seen by an external, independent Analysis Agent.
+* **Strict Mode:** Active protection that blocks connections and alerts the user immediately upon detecting fingerprint mismatches or high-risk indicators.
+* **Trust On First Use (TOFU):** Intelligent verification mechanism that builds a whitelist of trusted fingerprints based on safe browsing history.
+* **Real-time Scoring:** Dynamically calculates a security score for visited HTTPS websites based on risk analysis algorithms.
 
-## Installation ⚙️
+## 🏗 Architecture
+
+The system consists of three main components:
+
+1.  **Chrome Extension (`/`):** The user interface that monitors navigation, intercepts risky requests, and displays security insights.
+2.  **Native Host (`cert-monitor-native/`):** A background Go application acting as a bridge to the Operating System, allowing the extension to inspect raw certificates bypassing potential browser-level tampering.
+3.  **Analysis Server (`cmd/cert-monitor/`):** An external API Server (Go) that provides a "clean" view of the target website's certificate from outside the local network.
+
+## 🛠 Installation & Usage
 
 ### Prerequisites
+* Go 1.22 or newer.
+* Google Chrome (Developer Mode enabled).
+* Windows OS (Required for the Native Host `.exe`).
 
-* Go version 1.22 or newer.
-
-### Build From Source
-
-1.  **Clone the repository:**
-    ```bash
-    git clone [https://github.com/your-username/cert-monitor.git](https://github.com/your-username/cert-monitor.git)
-    cd cert-monitor
-    ```
-
-2.  **Build the executable:**
-    ```bash
-    go build -o cert-monitor ./cmd/cert-monitor/main.go
-    ```
-
-3.  **Move the binary to a system path (optional but recommended):**
-    ```bash
-    sudo mv cert-monitor /usr/local/bin/
-    ```
-
-## Configuration ⚙️
-
-Cert-Monitor is configured using a `config.toml` file. A sample configuration file is provided as `config.toml`.
-
-1.  **Create your configuration file:**
-    ```bash
-    cp config.toml config.toml
-    ```
-
-2.  **Edit `config.toml`:**
-
-    ```toml
-    # config.toml - Main configuration file for Cert-Monitor
-
-    [settings]
-    # A list of domain names to monitor.
-    domains = [
-        "google.com",
-        "github.com",
-        "uit.edu.vn",
-        "expired.badssl.com" 
-    ]
-
-    # Alert thresholds in days. An alert is sent when the days remaining
-    # are less than or equal to one of these values.
-    alert_thresholds = [30, 15, 7]
-
-    [notifications.slack]
-    # Enable or disable Slack notifications.
-    enabled = true
-
-    # The name of the environment variable that holds the Slack Webhook URL.
-    # This is a security best practice to keep secrets out of the config file.
-    webhook_url_env_var = "SLACK_WEBHOOK_URL"
-    ```
-
-3.  **Set up Environment Variables:**
-
-    For security, sensitive information like the Slack Webhook URL is loaded from an environment variable.
-
-    ```bash
-    # Set this variable permanently in your shell profile (e.g., .bashrc, .zshrc)
-    # or system-wide environment variables.
-    export SLACK_WEBHOOK_URL="[https://hooks.slack.com/services/YOUR/WEBHOOK/URL](https://hooks.slack.com/services/YOUR/WEBHOOK/URL)"
-    ```
-
-## Usage 🚀
-
-### Manual (One-off) Check
-
-You can run the tool at any time to perform an immediate check:
+### Step 1: Start the Backend Server
+The server acts as the external "Agent" to verify certificates.
 
 ```bash
-cert-monitor
+cd cmd/cert-monitor
+go run main.go
+# Server will start at http://localhost:8080
+
+
+Step 2: Install the Native Host
+This component enables communication between Chrome and the OS.
+
+Navigate to cert-monitor-native/.
+
+Build the executable (if not already built):
+
+Bash
+
+go build -o cert-native.exe main.go
+Run install.bat as Administrator. This registers the Native Host manifest with the Windows Registry so Chrome can find it.
+
+Step 3: Load the Chrome Extension
+Open Chrome and navigate to chrome://extensions/.
+
+Enable Developer mode (top right corner).
+
+Click Load unpacked and select the root cert-monitor/ directory.
+
+Pin the extension icon to your toolbar for easy access.
+
+⚙️ Configuration
+Server Config: Edit config.toml to manage the monitoring port and periodic domain checks.
+
+Extension Config: Toggle Strict Mode directly via the Extension Popup interface.
+
+📂 Project Structure
+cert-monitor/
+├── cert-monitor-native/    # Native Messaging Host (Go code + Installer)
+├── cmd/                    # Backend Server & Experiments
+├── internal/               # Core logic modules (Checker, Notifier, etc.)
+├── background.js           # Extension Service Worker (Central logic)
+├── checking.js             # Logic for the Blocking/Warning page
+├── popup.js                # Popup UI logic
+└── manifest.json           # Chrome Extension Manifest
+📝 License
+Distributed under the MIT License.
+
+
+
+git add .
+
+# 3. Commit với nội dung cập nhật tài liệu
+git commit -m "docs: update README to English and remove junk files"
