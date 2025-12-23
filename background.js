@@ -1,22 +1,62 @@
 // File: background.js
-const API_ENDPOINT = 'http://localhost:8080/check-cert';
 
-// Cache dùng cho Passive Mode (TOFU)
-const certCache = {}; 
-// Cache dùng cho Strict Mode (Whitelist các trang đã qua phòng cách ly)
+// --- CẤU HÌNH ---
+const API_ENDPOINT = 'http://localhost:8080/check-cert';
+const NATIVE_HOST_NAME = "com.certmonitor.native"; // Phải khớp với file nm_host.json
+
+// Cache Whitelist phiên làm việc
 const safeSessionCache = {}; 
 
-// --- PHẦN 1: LOGIC CHẶN CỦA STRICT MODE ---
+// Biến toàn cục lưu trạng thái Strict Mode
+let isStrictMode = false;
+
+// --- KHỞI TẠO ---
+chrome.storage.sync.get(['strictMode'], (result) => {
+    isStrictMode = result.strictMode || false;
+});
+
+chrome.storage.onChanged.addListener((changes, namespace) => {
+    if (changes.strictMode) {
+        isStrictMode = changes.strictMode.newValue;
+        if (!isStrictMode) { 
+            for (let member in safeSessionCache) delete safeSessionCache[member];
+        }
+    }
+});
+
+// --- HÀM GỌI NATIVE APP ---
+function getNativeFingerprint(domain) {
+    return new Promise((resolve) => {
+        try {
+            console.log(`[Native] Asking OS for certificate of: ${domain}`);
+            chrome.runtime.sendNativeMessage(NATIVE_HOST_NAME, { domain: domain }, (response) => {
+                if (chrome.runtime.lastError) {
+                    console.error("Native Error:", chrome.runtime.lastError.message);
+                    resolve(null);
+                } else {
+                    if (response && response.fingerprint) {
+                        resolve(response.fingerprint);
+                    } else {
+                        resolve(null);
+                    }
+                }
+            });
+        } catch (e) {
+            console.error(e);
+            resolve(null);
+        }
+    });
+}
+
+// --- PHẦN 1: LOGIC CHẶN (STRICT MODE) ---
 function shouldIntercept(url) {
     try {
         const urlObj = new URL(url);
-        // Chỉ chặn HTTPS và không chặn trang nội bộ extension
         if (urlObj.protocol !== 'https:') return false;
         if (url.startsWith(chrome.runtime.getURL(""))) return false;
 
         const hostname = urlObj.hostname;
         
-        // Nếu đã nằm trong whitelist (đã check an toàn trong 10 phút)
         if (safeSessionCache[hostname] && (Date.now() - safeSessionCache[hostname] < 600000)) {
             return false;
         }
@@ -24,65 +64,78 @@ function shouldIntercept(url) {
     } catch (e) { return false; }
 }
 
-// Lắng nghe sự kiện chuyển trang (Navigation)
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-    // Khi trang bắt đầu load
-    if (changeInfo.status === 'loading' && tab.url) {
-        
-        // Kiểm tra xem người dùng đang Bật hay Tắt Strict Mode
-        chrome.storage.sync.get(['strictMode'], function(result) {
-            if (result.strictMode) {
-                // [STRICT MODE] -> Kiểm tra chặn
-                if (shouldIntercept(tab.url)) {
-                    console.log("[Strict Mode] Intercepting: " + tab.url);
-                    const checkingUrl = chrome.runtime.getURL('checking.html') + 
-                                        `?target=${encodeURIComponent(tab.url)}`;
-                    chrome.tabs.update(tabId, { url: checkingUrl });
-                }
-            } else {
-                // [PASSIVE MODE] -> Chỉ check ngầm, không chặn
-                // Gọi hàm check để cập nhật icon badge
-                if (tab.url.startsWith('https')) {
-                    checkAndSendResult(tab.url, tabId);
-                }
+    if (tab.url && (changeInfo.status === 'loading' || changeInfo.url)) {
+        if (isStrictMode) {
+            if (shouldIntercept(tab.url)) {
+                const checkingUrl = chrome.runtime.getURL('checking.html') + 
+                                    `?target=${encodeURIComponent(tab.url)}`;
+                chrome.tabs.update(tabId, { url: checkingUrl });
             }
-        });
+        } else {
+            // Passive Mode
+            if (tab.url.startsWith('https') && changeInfo.status === 'complete') {
+                checkAndSendResult(tab.url, tabId);
+            }
+        }
     }
 });
 
-// Nhận tin nhắn từ "Phòng cách ly" (checking.js)
+// --- PHẦN 2: XỬ LÝ TIN NHẮN (QUAN TRỌNG) ---
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    
+    // 2.1. Whitelist
     if (request.action === "mark_as_safe") {
         const hostname = new URL(request.url).hostname;
-        safeSessionCache[hostname] = Date.now(); // Thêm vào whitelist
+        safeSessionCache[hostname] = Date.now();
         sendResponse({status: "ok"});
     }
 
+    // 2.2. VALIDATE TOFU (STRICT MODE)
+    // SỬA ĐỔI: Hỗ trợ kiểm tra danh sách Fingerprints (Multi-IP)
     if (request.action === "validate_tofu") {
         const domain = request.domain;
-        const newFingerprint = request.fingerprint;
         
-        let isSafe = true;
-        let error = "";
+        // Nhận cả danh sách (nếu có) hoặc 1 cái (fallback)
+        const validFingerprints = request.fingerprints || [];
+        if (request.fingerprint) validFingerprints.push(request.fingerprint);
 
-        // So sánh với Cache trong Background
-        if (certCache[domain]) {
-            if (certCache[domain] !== newFingerprint) {
+        getNativeFingerprint(domain).then((localFingerprint) => {
+            let isSafe = true;
+            let error = "";
+
+            if (!localFingerprint) {
                 isSafe = false;
-                error = "Fingerprint mismatch with Local Cache (TOFU)!";
-            }
-        } else {
-            // Nếu chưa có thì lưu luôn (Trust First Use)
-            certCache[domain] = newFingerprint;
-        }
+                error = "Native Host Unreachable";
+            } else {
+                const localClean = localFingerprint.toLowerCase();
+                
+                // SO SÁNH THÔNG MINH: Local có nằm trong danh sách Valid không?
+                const isMatch = validFingerprints.some(fp => fp.toLowerCase() === localClean);
 
-        sendResponse({ isSafe: isSafe, error: error });
-        return true; // Giữ kết nối async
+                if (!isMatch) {
+                    isSafe = false;
+                    error = `MITM DETECTED! Local (${localClean.substring(0,8)}...) not found in valid Agent list.`;
+                    console.warn(`MITM ALERT ${domain}: Local mismatch`);
+                } else {
+                    console.log(`Integrity Confirmed for ${domain}`);
+                }
+            }
+
+            sendResponse({ isSafe: isSafe, error: error });
+        });
+
+        return true; 
+    }
+
+    // 2.3. Passive Check
+    if (request.action === "request_cert_check") {
+        checkAndSendResult(request.url, request.tabId);
+        return true;
     }
 });
 
-
-// --- PHẦN 2: LOGIC KIỂM TRA & TOFU (Dùng cho cả Passive & Popup) ---
+// --- PHẦN 3: LOGIC CHECK PASSIVE ---
 async function checkAndSendResult(url, tabId) {
     let result = {
         issuer: "Checking...",
@@ -95,39 +148,39 @@ async function checkAndSendResult(url, tabId) {
     try {
         const hostname = new URL(url).hostname;
 
-        // Gọi API Go Server
+        // 1. Gọi API Go Server
         const response = await fetch(API_ENDPOINT, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ domain: hostname })
         });
-
-        if (!response.ok) throw new Error("Agent Connection Failed");
-
+        
+        if(!response.ok) throw new Error("Agent Failed");
         const apiData = await response.json();
+        
+        result = { ...result, ...apiData };
 
-        if (apiData.error) throw new Error(apiData.error);
+        // 2. Lấy Native Fingerprint
+        const localFingerprint = await getNativeFingerprint(hostname);
 
-        // Map dữ liệu
-        result.issuer = apiData.issuer;
-        result.expiryDate = new Date(apiData.expiryDate).toLocaleDateString();
-        result.daysLeft = apiData.daysLeft;
-        result.securityScore = apiData.security_score;
-        result.riskLevel = apiData.risk_level;
-        result.fingerprint = apiData.fingerprint;
-        result.signatureAlgorithm = apiData.signatureAlgorithm;
-        result.shouldAlert = apiData.shouldAlert;
+        // 3. SO SÁNH (MULTI-IP AWARE)
+        if (localFingerprint) {
+            const localClean = localFingerprint.toLowerCase();
+            let isMatch = false;
 
-        // TOFU Logic (Trust On First Use)
-        if (certCache[hostname]) {
-            if (certCache[hostname] !== result.fingerprint) {
+            // Ưu tiên check mảng fingerprints
+            if (apiData.fingerprints && apiData.fingerprints.length > 0) {
+                isMatch = apiData.fingerprints.some(fp => fp.toLowerCase() === localClean);
+            } else if (apiData.fingerprint) {
+                isMatch = (localClean === apiData.fingerprint.toLowerCase());
+            }
+
+            if (!isMatch) {
                 result.isMITM = true;
-                result.error = "Certificate Fingerprint changed!";
+                result.error = "MITM DETECTED (Native Check)";
                 result.shouldAlert = true;
                 result.securityScore = 0;
             }
-        } else {
-            certCache[hostname] = result.fingerprint;
         }
 
     } catch (e) {
@@ -135,36 +188,20 @@ async function checkAndSendResult(url, tabId) {
         result.error = e.message;
     }
 
-    // Gửi kết quả về Popup (nếu đang mở)
-    chrome.runtime.sendMessage({
-        action: "cert_status_update",
-        ...result
-    }).catch(() => {});
-
-    // Cập nhật Badge trên Icon
+    chrome.runtime.sendMessage({ action: "cert_status_update", ...result }).catch(()=>{});
     updateBadge(tabId, result);
 }
 
 function updateBadge(tabId, result) {
-    let color = '#00AA00'; // Xanh
+    let color = '#00AA00';
     let text = result.securityScore ? result.securityScore.toString() : "";
-
-    if (result.isMITM) {
-        color = '#FF0000'; text = "MITM";
-    } else if (result.shouldAlert || result.riskLevel === 'CRITICAL') {
-        color = '#FF0000'; text = "!";
-    } else if (result.riskLevel === 'WARNING') {
-        color = '#FFA500'; 
+    if (result.isMITM) { color = '#FF0000'; text = "MITM"; }
+    else if (result.shouldAlert) { color = '#FF0000'; text = "!"; }
+    
+    if (tabId) {
+        try {
+            chrome.action.setBadgeBackgroundColor({ color: color, tabId: tabId });
+            chrome.action.setBadgeText({ text: text, tabId: tabId });
+        } catch(e) {}
     }
-
-    chrome.action.setBadgeBackgroundColor({ color: color });
-    chrome.action.setBadgeText({ tabId: tabId, text: text });
 }
-
-// Lắng nghe yêu cầu từ Popup
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.action === "request_cert_check") {
-        checkAndSendResult(request.url, request.tabId);
-        return true;
-    }
-});

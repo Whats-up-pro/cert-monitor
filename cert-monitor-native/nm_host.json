@@ -1,0 +1,9 @@
+{
+  "name": "com.certmonitor.native",
+  "description": "Cert Monitor Native Host",
+  "path": "cert-native.exe",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://oepfclglmjhdapmbhphbhakdjnpodobj/"
+  ]
+}

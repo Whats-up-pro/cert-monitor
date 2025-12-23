@@ -19,7 +19,8 @@
     "activeTab", 
     "tabs",
     "webRequest",
-    "storage"
+    "storage",
+    "nativeMessaging"
   ],
   "host_permissions": [
     "<all_urls>",
