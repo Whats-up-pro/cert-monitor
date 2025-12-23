@@ -41,8 +41,8 @@ cd cmd/cert-monitor
 go run main.go
 # Server will start at http://localhost:8080
 
-
-Step 2: Install the Native Host
+```
+### Step 2: Install the Native Host
 This component enables communication between Chrome and the OS.
 
 Navigate to cert-monitor-native/.
@@ -51,10 +51,12 @@ Build the executable (if not already built):
 
 Bash
 
+```bash
 go build -o cert-native.exe main.go
 Run install.bat as Administrator. This registers the Native Host manifest with the Windows Registry so Chrome can find it.
+```
 
-Step 3: Load the Chrome Extension
+### Step 3: Load the Chrome Extension
 Open Chrome and navigate to chrome://extensions/.
 
 Enable Developer mode (top right corner).
@@ -68,7 +70,9 @@ Server Config: Edit config.toml to manage the monitoring port and periodic domai
 
 Extension Config: Toggle Strict Mode directly via the Extension Popup interface.
 
-📂 Project Structure
+### 📂 Project Structure
+
+```bash
 cert-monitor/
 ├── cert-monitor-native/    # Native Messaging Host (Go code + Installer)
 ├── cmd/                    # Backend Server & Experiments
@@ -77,12 +81,6 @@ cert-monitor/
 ├── checking.js             # Logic for the Blocking/Warning page
 ├── popup.js                # Popup UI logic
 └── manifest.json           # Chrome Extension Manifest
+```
 📝 License
 Distributed under the MIT License.
-
-
-
-git add .
-
-# 3. Commit với nội dung cập nhật tài liệu
-git commit -m "docs: update README to English and remove junk files"
