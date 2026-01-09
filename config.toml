@@ -1,18 +1,59 @@
-# config.toml
+# Cert-Monitor v2.0 Configuration
 
-[settings]
-# Danh sách các tên miền cần giám sát
-domains = [
-    "google.com",
-    "github.com",
-    "uit.edu.vn"
-]
+[server]
+host = "0.0.0.0"
+port = 8080
+read_timeout = "30s"
+write_timeout = "30s"
+enable_cors = true
+# tls_cert_file = "./certs/server.crt"
+# tls_key_file = "./certs/server.key"
 
-# Các ngưỡng cảnh báo (tính bằng ngày trước khi hết hạn)
-alert_thresholds = [365, 15, 7]
+[agent]
+id = "agent-primary"
+region = "local"
+enable_consensus = false
+consensus_threshold = 0.67
+# peer_agents = ["http://localhost:8081", "http://localhost:8082"]
 
-[notifications.slack]
-enabled = true
+[validator]
+enable_fingerprint = true
+enable_ct = true
+enable_ocsp = true
+enable_dns_caa = false
+enable_historical = true
+enable_ml = true
+total_timeout = "30s"
+per_check_timeout = "10s"
+mitm_threshold = 0.3
+suspicious_threshold = 0.6
+allow_cdn_variance = true
 
-# Webhook URL
+[cache]
+enable_tofu = true
+ttl = "24h"
+max_entries = 10000
+persist_path = "./cache.json"
+
+[logging]
+level = "info"
+format = "text"
+output_path = "stdout"
+
+[notifier.slack]
+enabled = false
 webhook_url_env_var = "SLACK_WEBHOOK_URL"
+
+[notifier.webhook]
+enabled = false
+url = ""
+secret = ""
+
+[notifier.email]
+enabled = false
+smtp_server = ""
+smtp_port = 587
+username = ""
+password = ""
+from = ""
+to = []

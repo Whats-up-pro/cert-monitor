@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cert-Monitor</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      width: 380px;
+      min-height: 480px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 100%);
+      color: #e5e7eb;
+    }
+    
+    .header {
+      background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+      padding: 20px;
+      text-align: center;
+    }
+    
+    .header h1 {
+      font-size: 20px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    
+    .header .subtitle {
+      font-size: 12px;
+      opacity: 0.8;
+      margin-top: 4px;
+    }
+    
+    .status-card {
+      margin: 16px;
+      padding: 20px;
+      border-radius: 12px;
+      text-align: center;
+    }
+    
+    .status-card.safe {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(6, 78, 59, 0.3) 100%);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    
+    .status-card.mitm {
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(127, 29, 29, 0.3) 100%);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+    
+    .status-card.suspicious {
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.2) 0%, rgba(120, 53, 15, 0.3) 100%);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+    
+    .status-card.unknown {
+      background: linear-gradient(135deg, rgba(107, 114, 128, 0.2) 0%, rgba(55, 65, 81, 0.3) 100%);
+      border: 1px solid rgba(107, 114, 128, 0.3);
+    }
+    
+    .status-icon {
+      font-size: 48px;
+      margin-bottom: 12px;
+    }
+    
+    .status-text {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    
+    .status-domain {
+      font-family: monospace;
+      font-size: 14px;
+      color: #9ca3af;
+      word-break: break-all;
+    }
+    
+    .score-section {
+      display: flex;
+      justify-content: space-around;
+      padding: 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .score-item {
+      text-align: center;
+    }
+    
+    .score-value {
+      font-size: 24px;
+      font-weight: 700;
+    }
+    
+    .score-value.good { color: #10b981; }
+    .score-value.warning { color: #f59e0b; }
+    .score-value.bad { color: #ef4444; }
+    
+    .score-label {
+      font-size: 11px;
+      color: #9ca3af;
+      margin-top: 4px;
+    }
+    
+    .dimensions-section {
+      padding: 16px;
+    }
+    
+    .dimensions-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #9ca3af;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    
+    .dimension-item {
+      display: flex;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    
+    .dimension-status {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      margin-right: 12px;
+    }
+    
+    .dimension-status.pass { background: #10b981; }
+    .dimension-status.fail { background: #ef4444; }
+    .dimension-status.warning { background: #f59e0b; }
+    .dimension-status.unknown { background: #6b7280; }
+    
+    .dimension-info {
+      flex: 1;
+    }
+    
+    .dimension-name {
+      font-size: 13px;
+      font-weight: 500;
+    }
+    
+    .dimension-details {
+      font-size: 11px;
+      color: #9ca3af;
+      margin-top: 2px;
+    }
+    
+    .dimension-score {
+      font-size: 12px;
+      font-weight: 600;
+      color: #9ca3af;
+    }
+    
+    .controls {
+      padding: 16px;
+      display: flex;
+      gap: 8px;
+    }
+    
+    .btn {
+      flex: 1;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .btn-primary {
+      background: #3b82f6;
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background: #2563eb;
+    }
+    
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.1);
+      color: #e5e7eb;
+    }
+    
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+    
+    .stats-section {
+      padding: 16px;
+      background: rgba(0, 0, 0, 0.2);
+    }
+    
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+    
+    .stat-item {
+      text-align: center;
+    }
+    
+    .stat-value {
+      font-size: 18px;
+      font-weight: 700;
+      color: #3b82f6;
+    }
+    
+    .stat-label {
+      font-size: 10px;
+      color: #9ca3af;
+      margin-top: 2px;
+    }
+    
+    .toggle-container {
+      padding: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .toggle-label {
+      font-size: 14px;
+    }
+    
+    .toggle {
+      position: relative;
+      width: 48px;
+      height: 24px;
+    }
+    
+    .toggle input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #4b5563;
+      transition: 0.3s;
+      border-radius: 24px;
+    }
+    
+    .toggle-slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: 0.3s;
+      border-radius: 50%;
+    }
+    
+    .toggle input:checked + .toggle-slider {
+      background-color: #10b981;
+    }
+    
+    .toggle input:checked + .toggle-slider:before {
+      transform: translateX(24px);
+    }
+    
+    .loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 60px;
+    }
+    
+    .spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid rgba(59, 130, 246, 0.2);
+      border-radius: 50%;
+      border-top-color: #3b82f6;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🛡️ Cert-Monitor</h1>
+    <div class="subtitle">Multi-Dimensional Certificate Validation</div>
+  </div>
+  
+  <div id="content">
+    <div class="loading">
+      <div class="spinner"></div>
+    </div>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>

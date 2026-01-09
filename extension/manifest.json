@@ -1,0 +1,61 @@
+{
+  "manifest_version": 3,
+  "name": "Cert-Monitor",
+  "version": "2.0.0",
+  "description": "Advanced MITM Detection - Multi-Dimensional Certificate Validation with Split-View Analysis",
+  
+  "permissions": [
+    "webRequest",
+    "webNavigation",
+    "storage",
+    "alarms",
+    "notifications",
+    "nativeMessaging"
+  ],
+  
+  "host_permissions": [
+    "https://*/*",
+    "http://*/*"
+  ],
+  
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "assets/icon16.png",
+      "32": "assets/icon32.png",
+      "48": "assets/icon48.png",
+      "128": "assets/icon128.png"
+    },
+    "default_title": "Cert-Monitor - MITM Detection"
+  },
+  
+  "icons": {
+    "16": "assets/icon16.png",
+    "32": "assets/icon32.png",
+    "48": "assets/icon48.png",
+    "128": "assets/icon128.png"
+  },
+  
+  "content_scripts": [
+    {
+      "matches": ["https://*/*", "http://*/*"],
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "all_frames": false
+    }
+  ],
+  
+  "web_accessible_resources": [
+    {
+      "resources": ["assets/*"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  
+  "options_page": "popup/options.html"
+}

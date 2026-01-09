@@ -1,0 +1,85 @@
+# Test Domains for Cert-Monitor v2.0 Experiments
+# Format: domain (one per line)
+# Lines starting with # are comments
+
+# High-traffic domains - should all pass
+google.com
+youtube.com
+facebook.com
+amazon.com
+twitter.com
+instagram.com
+linkedin.com
+microsoft.com
+apple.com
+github.com
+stackoverflow.com
+reddit.com
+netflix.com
+cloudflare.com
+wordpress.com
+
+# Banking/Financial - critical security
+paypal.com
+stripe.com
+chase.com
+bankofamerica.com
+wellsfargo.com
+
+# Known good SSL configurations
+badssl.com
+sha256.badssl.com
+sha384.badssl.com
+sha512.badssl.com
+ecc256.badssl.com
+ecc384.badssl.com
+rsa2048.badssl.com
+rsa4096.badssl.com
+rsa8192.badssl.com
+extended-validation.badssl.com
+mozilla-modern.badssl.com
+
+# Short-lived certificates (Let's Encrypt)
+letsencrypt.org
+certbot.eff.org
+
+# CDN-backed domains
+jquery.com
+cdnjs.com
+unpkg.com
+jsdelivr.net
+
+# Vietnamese domains
+vnexpress.net
+zalopay.vn
+momo.vn
+tiki.vn
+shopee.vn
+lazada.vn
+fpt.vn
+vietcombank.com.vn
+techcombank.com.vn
+
+# Government/Educational
+uit.edu.vn
+hcmus.edu.vn
+hcmut.edu.vn
+vnuhcm.edu.vn
+gov.vn
+
+# Technology companies
+aws.amazon.com
+cloud.google.com
+azure.microsoft.com
+digitalocean.com
+heroku.com
+vercel.com
+netlify.com
+
+# Security-focused sites
+schneier.com
+krebsonsecurity.com
+haveibeenpwned.com
+threatpost.com
+
+# Total: 60+ domains for comprehensive testing
