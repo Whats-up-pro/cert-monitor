@@ -37,3 +37,4 @@ Thumbs.db
 # --- SECURITY (Rất quan trọng) ---
 .env
 .env.local
+*.pdf
