@@ -1,4 +1,4 @@
-# Cert-Monitor v2.0
+# Cert-Monitor v2.0: Hybrid MITM Detection System
 
 ![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)
 ![Go](https://img.shields.io/badge/go-1.22+-00ADD8.svg)
@@ -70,7 +70,8 @@ Cert-Monitor v2.0 is a hybrid cross-verification framework designed to detect so
 
 ### Prerequisites
 - Go 1.22 or newer
-- Chrome/Edge browser (for extension)
+- Google Chrome (Developer Mode enabled)
+- Windows OS (Required for the Native Host `.exe`)
 
 ### Build the Agent
 
@@ -116,7 +117,7 @@ Verify a single domain's certificate.
 ```json
 {
   "domain": "google.com",
-  "client_fingerprint": "abc123...", // optional
+  "client_fingerprint": "abc123...",
   "request_id": "req-123"
 }
 ```
@@ -213,6 +214,10 @@ cert-monitor/
 │   ├── api/            # HTTP server
 │   └── config/         # Configuration
 ├── extension/          # Chrome Extension
+│   ├── background.js   # Service Worker
+│   ├── content.js      # Content Script
+│   ├── popup/          # Popup UI
+│   └── manifest.json   # Manifest V3
 ├── testdata/           # Test data
 └── scripts/            # Utility scripts
 ```

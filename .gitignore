@@ -1,11 +1,13 @@
-# Go build files
+# --- Go ---
+# Binaries for Windows
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
+*.test
 
-# Python cache
+# --- Python ---
 __pycache__/
 *.pyc
 *.pyo
@@ -14,10 +16,24 @@ __pycache__/
 # Virtual environment
 venv/
 env/
+.venv/
 
-# IDE files
+# --- IDE & Editors ---
 .idea/
 .vscode/
+*.swp
 
-# OS files
+# --- OS Files ---
 .DS_Store
+Thumbs.db
+
+# --- Logs & Output ---
+*.log
+*.txt  <-- Đã comment lại để tránh mất requirements.txt
+
+# --- Data Output ---
+*.csv
+
+# --- SECURITY (Rất quan trọng) ---
+.env
+.env.local
