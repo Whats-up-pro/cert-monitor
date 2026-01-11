@@ -161,8 +161,8 @@ Key contributions:
 ## 👥 Authors
 
 - Nguyen Minh Quang Vu
-- Quang Vu Phan
 - Tan-Gia-Quoc Pham
+- Quang Vu Phan
 - Ngoc Toan Khuong
 - Tuan-Dung Tran (Corresponding)
 
