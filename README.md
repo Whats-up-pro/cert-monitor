@@ -1,249 +1,177 @@
-# Cert-Monitor v2.0: Hybrid MITM Detection System
+# TrustGuard: MITM Detection with Decentralized Multi-Vantage Trust Consensus
 
 ![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)
 ![Go](https://img.shields.io/badge/go-1.22+-00ADD8.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
-**Advanced MITM Detection Framework with Multi-Dimensional Certificate Validation**
+**Split-View Certificate Verification with Multi-Dimensional Validation**
 
-Cert-Monitor v2.0 is a hybrid cross-verification framework designed to detect sophisticated Man-in-the-Middle (MITM) attacks that bypass standard browser defenses, particularly Root CA injection attacks.
+TrustGuard is a detection framework for client-side TLS interception attacks based on the split-view principle: comparing locally observed certificates against those seen by external verification agents.
 
-## 🆕 What's New in v2.0
+## 🔬 Key Features
 
-| Feature | v1.0 | v2.0 |
-|---------|------|------|
-| Validation Approach | Single fingerprint | **Multi-Dimensional (7 dimensions)** |
-| External Verification | Centralized Oracle | **Decentralized BFT Consensus** |
-| Anomaly Detection | Rule-based | **ML-Powered Detection** |
-| Performance | ~539ms latency | **Optimized with TOFU caching** |
-| Security Proof | None | **Ed25519 Cryptographic Attestation** |
+| Feature | Description |
+|---------|-------------|
+| **Split-View Detection** | Detects certificate discrepancies between client and external vantage points |
+| **DMTC Protocol** | Decentralized Multi-Vantage Trust Consensus with diversity constraints |
+| **Multi-Dimensional Scoring** | 5 active validation dimensions with configurable weights |
+| **Native Messaging** | Bypasses browser sandbox for ground-truth certificate extraction |
+| **BFT Consensus** | Optional Byzantine Fault Tolerant multi-agent verification |
 
 ## 🏗️ Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    Cert-Monitor v2.0 Architecture                │
+│                      TrustGuard Architecture                     │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  ┌──────────────────┐    ┌──────────────────────────────────┐   │
-│  │ Browser Extension │───▶│    Verification Agent (Go)      │   │
-│  │   (Manifest V3)   │    │  ┌────────────────────────────┐ │   │
-│  │                   │    │  │ Multi-Dimensional Validator│ │   │
-│  │  ├─ background.js │    │  ├─ Fingerprint Comparison   │ │   │
-│  │  ├─ content.js    │    │  ├─ CT Log Verification     │ │   │
-│  │  └─ popup/        │    │  ├─ OCSP Status Check       │ │   │
-│  └──────────────────┘    │  ├─ Heuristic Analysis       │ │   │
-│                           │  ├─ ML Anomaly Detection    │ │   │
-│                           │  └─ TOFU Cache              │ │   │
-│                           └──────────────────────────────────┘   │
-│                                        │                         │
-│                                        ▼                         │
+│  │ Browser Extension │───▶│    Native Host (Go)              │   │
+│  │   (Manifest V3)   │    │    Certificate Extraction        │   │
+│  └──────────────────┘    └──────────────┬───────────────────┘   │
+│                                          │                       │
+│                                          ▼                       │
 │                           ┌──────────────────────────────────┐   │
-│                           │    BFT Consensus Engine         │   │
-│                           │  (Multi-Agent Verification)     │   │
+│                           │    Verification Agent (Go)       │   │
+│                           │  ┌────────────────────────────┐  │   │
+│                           │  │ Multi-Dimensional Validator │  │   │
+│                           │  │ • Fingerprint (30%)        │  │   │
+│                           │  │ • CT Presence (25%)        │  │   │
+│                           │  │ • OCSP Status (15%)        │  │   │
+│                           │  │ • Historical/TOFU (10%)    │  │   │
+│                           │  │ • Chain Heuristics (10%)   │  │   │
+│                           │  │ • Statistical Anomaly (10%)│  │   │
+│                           │  └────────────────────────────┘  │   │
+│                           └──────────────┬───────────────────┘   │
+│                                          │                       │
+│                                          ▼                       │
+│                           ┌──────────────────────────────────┐   │
+│                           │    DMTC Consensus Engine         │   │
+│                           │  • Diversity constraints         │   │
+│                           │  • BFT voting (67% threshold)   │   │
+│                           │  • Ed25519 attestation          │   │
 │                           └──────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
-```
-
-## 📋 Features
-
-### Multi-Dimensional Validation
-- **Fingerprint (30%)**: Split-View comparison between client and agent
-- **CT Presence (25%)**: Certificate Transparency log verification
-- **OCSP Status (15%)**: Real-time revocation checking
-- **DNS CAA (10%)**: Certification Authority Authorization
-- **Historical (10%)**: TOFU cache comparison
-- **Chain Validity (5%)**: Certificate chain analysis
-- **ML Anomaly (5%)**: Machine learning-based detection
-
-### Security Innovations
-- **Decentralized Consensus**: Byzantine Fault Tolerant verification
-- **Cryptographic Attestation**: Ed25519 signed proofs
-- **Zero Trust**: No implicit trust in local environment
-
-### Performance Optimizations
-- **TOFU Caching**: <10ms for cached domains
-- **Parallel Validation**: Concurrent dimension checks
-- **Goroutine Pool**: High-concurrency Go backend
-
-## 🚀 Quick Start
-
-### Prerequisites
-- Go 1.22 or newer
-- Google Chrome (Developer Mode enabled)
-- Windows OS (Required for the Native Host `.exe`)
-
-### Build the Agent
-
-```bash
-cd cert-monitor
-
-# Download dependencies
-go mod tidy
-
-# Build the agent
-go build -o cert-monitor-agent ./cmd/agent
-
-# Run the agent
-./cert-monitor-agent
-```
-
-### Build the CLI
-
-```bash
-go build -o cert-monitor-cli ./cmd/cli
-
-# Verify a domain
-./cert-monitor-cli verify -domain google.com
-
-# Batch verify
-./cert-monitor-cli batch -domains "google.com,github.com,cloudflare.com"
-```
-
-### Install the Extension
-
-1. Open Chrome and navigate to `chrome://extensions/`
-2. Enable "Developer mode"
-3. Click "Load unpacked"
-4. Select the `extension/` directory
-
-## 📖 API Reference
-
-### POST /api/v2/verify
-
-Verify a single domain's certificate.
-
-**Request:**
-```json
-{
-  "domain": "google.com",
-  "client_fingerprint": "abc123...",
-  "request_id": "req-123"
-}
-```
-
-**Response:**
-```json
-{
-  "verdict": "SAFE",
-  "confidence": 0.95,
-  "security_score": 87.5,
-  "anomaly_score": 0.12,
-  "dimensions": [
-    {"dimension": "FINGERPRINT", "status": "PASS", "score": 1.0},
-    {"dimension": "CT_PRESENCE", "status": "PASS", "score": 0.9}
-  ],
-  "latency_ms": 234
-}
-```
-
-### POST /api/v2/batch-verify
-
-Batch verify multiple domains.
-
-### GET /api/v2/health
-
-Health check endpoint.
-
-### GET /api/v2/info
-
-Agent information and capabilities.
-
-## 🧪 Running Experiments
-
-### MITM Detection Test
-
-```bash
-# 1. Start the agent
-./cert-monitor-agent
-
-# 2. Configure Burp Suite as proxy (127.0.0.1:8080)
-# 3. Import PortSwigger CA into system trust store
-
-# 4. Run detection test
-./cert-monitor-cli verify -domain google.com
-```
-
-### Benchmark
-
-```bash
-# Run performance benchmark
-./scripts/benchmark.sh
 ```
 
 ## 📊 Experimental Results
 
 | Metric | Result |
 |--------|--------|
-| Detection Rate (MITM) | 100% |
-| False Positive Rate | 0% |
-| Average Latency (Cold) | ~400ms |
-| Average Latency (Cached) | <10ms |
-| CT Log Coverage | 90%+ |
+| Detection Accuracy | 99.3% (447/450) |
+| False Positive Rate | 0.5% |
+| Median Latency (Cold) | 387ms |
+| Median Latency (Cached) | 8ms |
+| Multi-Agent (5, parallel) | 448ms |
 
-## 🔧 Configuration
+## 🚀 Quick Start
 
-Edit `config.toml`:
+### Prerequisites
+- Go 1.22+
+- Google Chrome (Developer Mode)
+- Windows OS (for Native Host)
 
-```toml
-[server]
-port = 8080
+### Build & Run
 
-[validator]
-enable_fingerprint = true
-enable_ct = true
-enable_ocsp = true
-enable_ml = true
+```bash
+# Clone and build
+cd cert-monitor
+go mod tidy
 
-[cache]
-enable_tofu = true
-ttl = "24h"
+# Build agent
+go build -o cert-monitor-agent.exe ./cmd/agent
+
+# Build CLI
+go build -o cert-monitor-cli.exe ./cmd/cli
+
+# Run agent
+./cert-monitor-agent.exe
 ```
+
+### CLI Usage
+
+```bash
+# Verify single domain
+./cert-monitor-cli verify -domain google.com
+
+# Batch verify
+./cert-monitor-cli batch -domains "google.com,github.com"
+```
+
+### Install Extension
+1. Open `chrome://extensions/`
+2. Enable "Developer mode"
+3. Click "Load unpacked" → select `extension/` folder
 
 ## 📁 Project Structure
 
 ```
 cert-monitor/
 ├── cmd/
-│   ├── agent/          # Verification Agent
-│   └── cli/            # CLI Tool
+│   ├── agent/              # Verification Agent server
+│   └── cli/                # Command-line tool
 ├── internal/
-│   ├── core/           # Core types and validator
-│   ├── fetcher/        # TLS, CT, OCSP fetchers
-│   ├── analyzer/       # Heuristic and ML analysis
-│   ├── api/            # HTTP server
-│   └── config/         # Configuration
-├── extension/          # Chrome Extension
-│   ├── background.js   # Service Worker
-│   ├── content.js      # Content Script
-│   ├── popup/          # Popup UI
-│   └── manifest.json   # Manifest V3
-├── testdata/           # Test data
-└── scripts/            # Utility scripts
+│   ├── core/               # Validator, types, consensus
+│   ├── dmtc/               # DMTC: types, registry, selector, consensus
+│   ├── fetcher/            # TLS, CT, OCSP fetchers
+│   ├── analyzer/           # Heuristic analysis
+│   ├── api/                # HTTP server
+│   └── config/             # Configuration
+├── extension/              # Chrome Extension (Manifest V3)
+├── cert-monitor-native/    # Native Messaging Host
+└── config.toml             # Configuration file
 ```
 
-## 📝 Research Contributions
+## 🔧 Configuration
 
-1. **Multi-Dimensional Validation**: Beyond single fingerprint comparison
-2. **Decentralized Consensus**: Eliminates single point of failure
-3. **ML Anomaly Detection**: Intelligent certificate analysis
-4. **Cryptographic Attestation**: Verifiable agent integrity
-5. **Optimized TOFU**: Balance between security and performance
+Key parameters in `config.toml`:
 
-## 📄 License
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `enable_fingerprint` | true | Enable fingerprint comparison |
+| `enable_ct` | true | Enable CT log verification |
+| `enable_ocsp` | true | Enable OCSP checking |
+| `enable_consensus` | false | Enable multi-agent DMTC |
+| `consensus_threshold` | 0.67 | BFT agreement threshold |
+| `mitm_threshold` | 0.30 | Score threshold for MITM verdict |
+| `cache_ttl` | 24h | TOFU cache lifetime |
 
-MIT License - See [LICENSE](LICENSE) for details.
+## 📖 API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v2/verify` | POST | Single domain verification |
+| `/api/v2/batch-verify` | POST | Batch verification |
+| `/verify-consensus` | POST | DMTC consensus verification |
+| `/api/v2/health` | GET | Health check |
+
+## 📝 Research
+
+This project accompanies the paper:
+
+> **TrustGuard: Split-View Certificate Verification with Decentralized Multi-Vantage Trust Consensus**
+> 
+> Detects Root CA injection attacks through split-view analysis and multi-dimensional validation.
+
+Key contributions:
+1. **DMTC Protocol**: Decentralized verification with diversity constraints (≥3 ASNs, ≥2 countries)
+2. **Multi-Dimensional Scoring**: Beyond fingerprint comparison
+3. **Geo-Targeted Attack Detection**: Leveraging network diversity
 
 ## 👥 Authors
 
 - Nguyen Minh Quang Vu
-- Quang Vu Phan  
+- Quang Vu Phan
 - Tan-Gia-Quoc Pham
 - Ngoc Toan Khuong
-- Tuan-Dung Tran
+- Tuan-Dung Tran (Corresponding)
 
 University of Information Technology, VNU-HCM
 
+## 📄 License
+
+MIT License
+
 ---
 
-**Cert-Monitor v2.0** - Protecting your encrypted connections beyond browser trust.
+**TrustGuard** - Detecting MITM attacks beyond browser trust.
