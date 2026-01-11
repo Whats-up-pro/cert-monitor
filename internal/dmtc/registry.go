@@ -253,7 +253,7 @@ func DefaultVantagePoints() []*VantagePoint {
 	return []*VantagePoint{
 		{
 			ID:         "vp-us-east-1",
-			Endpoint:   "https://vp-us-east.trustguard.network/api/v2/observe",
+			Endpoint:   "https://vp-us-east.splitsight.network/api/v2/observe",
 			ASN:        14618,
 			ASNOrg:     "Amazon.com, Inc.",
 			Country:    "US",
@@ -263,7 +263,7 @@ func DefaultVantagePoints() []*VantagePoint {
 		},
 		{
 			ID:         "vp-eu-west-1",
-			Endpoint:   "https://vp-eu-west.trustguard.network/api/v2/observe",
+			Endpoint:   "https://vp-eu-west.splitsight.network/api/v2/observe",
 			ASN:        15169,
 			ASNOrg:     "Google LLC",
 			Country:    "DE",
@@ -273,7 +273,7 @@ func DefaultVantagePoints() []*VantagePoint {
 		},
 		{
 			ID:         "vp-ap-sg-1",
-			Endpoint:   "https://vp-ap-sg.trustguard.network/api/v2/observe",
+			Endpoint:   "https://vp-ap-sg.splitsight.network/api/v2/observe",
 			ASN:        13335,
 			ASNOrg:     "Cloudflare, Inc.",
 			Country:    "SG",
@@ -283,7 +283,7 @@ func DefaultVantagePoints() []*VantagePoint {
 		},
 		{
 			ID:         "vp-ap-jp-1",
-			Endpoint:   "https://vp-ap-jp.trustguard.network/api/v2/observe",
+			Endpoint:   "https://vp-ap-jp.splitsight.network/api/v2/observe",
 			ASN:        2516,
 			ASNOrg:     "KDDI Corporation",
 			Country:    "JP",
@@ -293,7 +293,7 @@ func DefaultVantagePoints() []*VantagePoint {
 		},
 		{
 			ID:         "vp-sa-br-1",
-			Endpoint:   "https://vp-sa-br.trustguard.network/api/v2/observe",
+			Endpoint:   "https://vp-sa-br.splitsight.network/api/v2/observe",
 			ASN:        16509,
 			ASNOrg:     "Amazon.com, Inc.",
 			Country:    "BR",

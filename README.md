@@ -1,4 +1,4 @@
-# TrustGuard: MITM Detection with Decentralized Multi-Vantage Trust Consensus
+# SplitSight: MITM Detection with Decentralized Multi-Vantage Trust Consensus
 
 ![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)
 ![Go](https://img.shields.io/badge/go-1.22+-00ADD8.svg)
@@ -6,7 +6,7 @@
 
 **Split-View Certificate Verification with Multi-Dimensional Validation**
 
-TrustGuard is a detection framework for client-side TLS interception attacks based on the split-view principle: comparing locally observed certificates against those seen by external verification agents.
+SplitSight is a detection framework for client-side TLS interception attacks based on the split-view principle: comparing locally observed certificates against those seen by external verification agents.
 
 ## 🔬 Key Features
 
@@ -22,7 +22,7 @@ TrustGuard is a detection framework for client-side TLS interception attacks bas
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                      TrustGuard Architecture                     │
+│                      SplitSight Architecture                     │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  ┌──────────────────┐    ┌──────────────────────────────────┐   │
@@ -149,7 +149,7 @@ Key parameters in `config.toml`:
 
 This project accompanies the paper:
 
-> **TrustGuard: Split-View Certificate Verification with Decentralized Multi-Vantage Trust Consensus**
+> **SplitSight: Split-View Certificate Verification with Decentralized Multi-Vantage Trust Consensus**
 > 
 > Detects Root CA injection attacks through split-view analysis and multi-dimensional validation.
 
@@ -174,4 +174,4 @@ MIT License
 
 ---
 
-**TrustGuard** - Detecting MITM attacks beyond browser trust.
+**SplitSight** - Detecting MITM attacks beyond browser trust.

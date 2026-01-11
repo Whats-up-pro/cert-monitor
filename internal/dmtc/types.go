@@ -1,5 +1,5 @@
 // Package dmtc implements Decentralized Multi-Vantage Trust Consensus (DMTC)
-// for TrustGuard certificate verification system.
+// for SplitSight certificate verification system.
 package dmtc
 
 import (
